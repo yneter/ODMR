@@ -106,8 +106,6 @@ class TwoTriplets {
     TripletHamiltonian triplet;
 
     Matrix9cd Hfull;
-    Vector9d Heval;
-    Matrix9cd Hevec;
     Matrix9cd Jproj;
     Matrix9cd tensor_product(const Matrix3cd &A, const Matrix3cd &B) { 
        return kroneckerProduct(A, B).eval();
@@ -129,12 +127,14 @@ class TwoTriplets {
     }
 
 public : 
+    enum { matrix_size = 9 };
     double D;
     double E;
     double J;
     double Jdip;
     double B;
-
+    Vector9d eval;
+    Matrix9cd evec;
 
     TwoTriplets(void) : triplet() { 
 
@@ -192,44 +192,45 @@ public :
     void diag(void) { 
        SelfAdjointEigenSolver<Matrix9cd> eigensolver(Hfull);
        if (eigensolver.info() != Success) abort();
-       Heval = eigensolver.eigenvalues();
-       Hevec = eigensolver.eigenvectors();
+       eval = eigensolver.eigenvalues();
+       evec = eigensolver.eigenvectors();
     }
 
-    double eval(int i) { 
-       return Heval(i);
-    };
-
-  
+ 
     double sz_elem(int i) { 
        Matrix9cd Sz2 = kroneckerProduct(triplet.Sz, triplet.Id).eval() + kroneckerProduct(triplet.Id, triplet.Sz).eval();
-       Matrix<complexg, 9, 1> vi = Hevec.col(i);
+       Matrix<complexg, 9, 1> vi = evec.col(i);
        Matrix<complexg, 1, 1> Sz2ii = vi.adjoint() * Sz2 * vi;
        return real(Sz2ii(0));
     }
 
     double quintet_content(int i) {
-       Matrix<complexg, 5, 1> iProj = Jproj.block(4, 0, 5, 9) * Hevec.block(0, i, 9, 1);
+       Matrix<complexg, 5, 1> iProj = Jproj.block(4, 0, 5, 9) * evec.block(0, i, 9, 1);
        Matrix<complexg, 1, 1> norm2 = iProj.adjoint() * iProj;
        return real(norm2(0));
     }
 
     double triplet_content(int i) {
-       Matrix<complexg, 3, 1> iProj = Jproj.block(1, 0, 3, 9) * Hevec.block(0, i, 9, 1);
+       Matrix<complexg, 3, 1> iProj = Jproj.block(1, 0, 3, 9) * evec.block(0, i, 9, 1);
        Matrix<complexg, 1, 1> norm2 = iProj.adjoint() * iProj;
        return real(norm2(0));
     }
 
     double singlet_content(int i) {
-       Matrix<complexg, 1, 1> iProj = Jproj.block(0, 0, 1, 9) * Hevec.block(0, i, 9, 1);
+       Matrix<complexg, 1, 1> iProj = Jproj.block(0, 0, 1, 9) * evec.block(0, i, 9, 1);
        Matrix<complexg, 1, 1> norm2 = iProj.adjoint() * iProj;
        return real(norm2(0));
     }
 
-    int size(void) { 
-       return Heval.size();
+    Matrix9cd singlet_projector(void) { 
+       return Jproj.row(0).adjoint() * Jproj.row(0);
     }
-   
+
+    Matrix9cd Bac_field_basis_matrix(void) { 
+       return tensor_product(triplet.Sx, triplet.Id) + tensor_product(triplet.Id, triplet.Sx);
+    }
+
+
     void print_info(void) { 
       cout << "# D " << D << endl;
       cout << "# E " << E << endl;
@@ -241,17 +242,129 @@ public :
 };
 
 
+/*
+ * ODMR_Signal
+ *
+ * Output : Computes ODMR and magnetic resonance signals 
+ *
+ * Input : spins, a reference on SpinSystem object
+ * SpinSystem should define 
+ * spins.matrix_size
+ * spins.evec
+ * spins.eval
+ * spins.singlet_projector()
+ * spins.Bac_field_basis_matrix()
+ */ 
+
+template <class SpinSystem> class ODMR_Signal { 
+    typedef Matrix<double, SpinSystem::matrix_size, 1> SpinVector;
+    typedef Matrix<complexg, SpinSystem::matrix_size, SpinSystem::matrix_size> SpinMatrix;
+
+    SpinVector rho0;
+    SpinMatrix rho2;
+    SpinMatrix Sproj_eig_basis;
+    SpinMatrix V;
+    SpinSystem &spins;
+
+public : 
+    double gamma;
+    double gamma_diag;
+
+
+    ODMR_Signal(SpinSystem &spin_system) : spins(spin_system) {
+
+    }
+
+    void update_from_spin_hamiltonian(void) { 
+        Sproj_eig_basis = spins.evec.adjoint() * spins.singlet_projector() * spins.evec;
+	V = spins.evec.adjoint() * spins.Bac_field_basis_matrix() * spins.evec; 
+    }
+
+    double omega_nm(int n, int m) { 
+       return spins.eval(n) - spins.eval(m);
+    }
+
+    void load_rho0_thermal(double Temp) { 
+       for (int i = 0; i < spins.matrix_size ; i++) { 
+	  rho0(i) = exp(- spins.eval(i) / Temp);
+       }
+       double t = rho0.sum();
+       rho0 /= t;
+    }
+
+    void load_rho0_from_singlet(void) { 
+       for (int i = 0; i < spins.matrix_size ; i++) { 
+	  rho0(i) = real(Sproj_eig_basis(i, i));
+       }
+       double t = rho0.sum();
+       rho0 /= t;
+    }    
+
+    complexg chi1(double omega) { 
+       complexg c1 = 0.0;
+       for (int m = 0; m < spins.matrix_size ; m++) { 
+	  for (int n = 0; n < spins.matrix_size ; n++) { 
+	     // 
+	     // the contribution to chi1 vanishes for n == m, whether gamma is the same for diagonal and non diagonal elements is not relvant here 
+	     // 
+	     // cerr << n << "    " << m << "    " << abs(V(m, n)) << endl;
+	     c1 -= (rho0(m) - rho0(n)) * V(m, n) * V(n, m) / ( omega_nm(n, m) - omega - iii * gamma );
+	  }
+       }
+       return c1;
+    }    
+
+
+    void find_rho2(double omega) { 
+       for (int m = 0; m < spins.matrix_size ; m++) { 
+	  for (int n = 0; n < spins.matrix_size ; n++) { 
+	     complexg rrr = 0.0;
+	     for (int nu = 0; nu < spins.matrix_size ; nu++) { 
+	        for (int p = -1; p <= 1; p += 2) { 
+
+		  //
+		  // relaxation may be different for diaganonal and non diagonal terms
+		  //
+
+		  double gamma_nm = (n == m) ? gamma_diag : gamma;
+
+		  rrr += (rho0(m) - rho0(nu)) * V(n, nu) * V(nu, m) 
+		    / ( ( omega_nm(n, m) - iii * gamma_nm ) * ( omega_nm(nu, m) - omega * (double) p - iii * gamma ) );
+		  rrr -= (rho0(nu) - rho0(n)) * V(n, nu) * V(nu, m) 
+		    / ( ( omega_nm(n, m) - iii * gamma_nm ) * ( omega_nm(n, nu) - omega * (double) p - iii * gamma ) );
+
+
+		}
+	     }
+	     rho2(n, m) = rrr;
+	  }
+       }
+    }
+
+    double odmr(double omega) { 
+       double odmr_amp = 0.0;
+       find_rho2(omega);
+       
+       for (int m = 0; m < spins.matrix_size ; m++) { 
+	  for (int n = 0; n < spins.matrix_size ; n++) { 
+	     odmr_amp += real( rho2(m , n) * Sproj_eig_basis(n, m) );
+	  }
+       }
+
+       return odmr_amp;
+    }
+};
+
 
 int main()
 {
-  //    NTriplets Exciton(2);
-    TwoTriplets Exciton;
-    Exciton.D = 1.0;
-    Exciton.E = 0.3;
-    Exciton.J = 0.0;
-    Exciton.Jdip = 0.1;
-    Exciton.B = 5.0;
-    Exciton.print_info();
+    TwoTriplets triplet_pair;
+    triplet_pair.D = 1.0;
+    triplet_pair.E = 0.01;
+    triplet_pair.J = 0.0;
+    triplet_pair.Jdip = 0.1;
+    triplet_pair.B = 5.0;
+    triplet_pair.print_info();
 
     srand(1);
 
@@ -272,14 +385,14 @@ int main()
 	  angles2[i] = 2.0 * M_PI * myrand();
        }
        rdip = random_unit_vector();
-       Exciton.load_field_basis_Hamiltonian(angles1, angles2, rdip );
-       Exciton.diag(); 
+       triplet_pair.load_field_basis_Hamiltonian(angles1, angles2, rdip );
+       triplet_pair.diag(); 
 
        double si = 0.0;
-       for (int i = 0; i < Exciton.size() ; i++) { 
-	  double qi = Exciton.quintet_content(i);
+       for (int i = 0; i < triplet_pair.matrix_size ; i++) { 
+	  double qi = triplet_pair.quintet_content(i);
 	  si += pow(qi, 4.0);
-	 //	 double s2i = Exciton.sz_elem(i);
+	 //	 double s2i = triplet_pair.sz_elem(i);
 	 //	 si += pow(s2i, 4.0);
        }
        if (si > quintet_max) { 
@@ -293,10 +406,6 @@ int main()
 
 
     cout << "# quintet_max " << quintet_max << endl;
-    // quintet_angles1 << 5.8308, 4.34636, 3.31015;
-    // quintet_angles2 << 2.88627, 4.83054, 2.48384;
-    // quintet_rdip << 0.0645974, 0.0136964, 0.997817;
-
     cout << "# triplet Euler angles :" << endl;
     for (int i = 0; i < 3; i++) cout << quintet_angles1[i] << "   ";
     cout << endl;
@@ -306,9 +415,27 @@ int main()
     for (int i = 0; i < 3; i++) cout << quintet_rdip[i] << "   ";
     cout << endl;
     
-    Exciton.load_field_basis_Hamiltonian(quintet_angles1, quintet_angles2, quintet_rdip);
-    Exciton.diag();
-    cout << "# qunitet/triplet projections at B = " << Exciton.B << endl;
-    for (int i = 0; i < Exciton.size() ; i++) 
-      cout << Exciton.quintet_content(i) << "    " << Exciton.triplet_content(i) << "    " << Exciton.singlet_content(i) << "    " << Exciton.sz_elem(i) << endl;
+    triplet_pair.load_field_basis_Hamiltonian(quintet_angles1, quintet_angles2, quintet_rdip);
+    triplet_pair.diag();
+    cout << "# qunitet/triplet projections at B = " << triplet_pair.B << endl;
+    for (int i = 0; i < triplet_pair.matrix_size ; i++) 
+      cout << triplet_pair.quintet_content(i) << "    " << triplet_pair.triplet_content(i) << "    " << triplet_pair.singlet_content(i) << "    " << triplet_pair.sz_elem(i) << endl;
+
+    double B_span = triplet_pair.B; 
+    ODMR_Signal<TwoTriplets> odmr_from_triplets(triplet_pair);    
+    //    triplet_pair.Jdip = 0.05;
+    //    triplet_pair.load_field_basis_Hamiltonian(quintet_angles1, quintet_angles2, quintet_rdip);
+    //    triplet_pair.diag();
+    odmr_from_triplets.update_from_spin_hamiltonian();
+    odmr_from_triplets.load_rho0_from_singlet();
+    //    odmr_from_triplets.load_rho0_thermal(5.0);
+    odmr_from_triplets.gamma = 1e-2;
+    odmr_from_triplets.gamma_diag = 1e-2;
+
+    for (double omega = 0; omega <= 2.0 * B_span; omega += 1e-3 * B_span) { 
+       complexg chi1 = odmr_from_triplets.chi1(omega);
+       double odmr = odmr_from_triplets.odmr(omega);
+       cerr << omega << "     " << real(chi1) << "     " << imag(chi1) << "     " << odmr << endl;
+    }
+
 }

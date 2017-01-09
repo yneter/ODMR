@@ -84,6 +84,7 @@ class TwoTriplets :
                 self.J = None
                 self.Jdip = None
                 self.B = None
+                self.matrix_size = 9
 
                 s2i3 = math.sqrt(2.0/3.0);
                 si2 = 1.0/math.sqrt(2.0);
@@ -121,32 +122,37 @@ class TwoTriplets :
                 self.Hfull += self.Jdip * self.dipole_dipole_matrix(dip_vec)
         
         def diag(self) :
-                self.Heval,self.Hevec = np.linalg.eigh(self.Hfull)
+                self.eval,self.evec = np.linalg.eigh(self.Hfull)
 
         def quintet_content(self, i): 
-            iProj = np.dot( self.Jproj[4:9, 0:9], self.Hevec[0:9, i:i+1] );
+            iProj = np.dot( self.Jproj[4:9, 0:9], self.evec[0:9, i:i+1] );
             norm2 = np.dot( np.matrix.getH(iProj), iProj );
             return norm2[0,0].real;
 
         def triplet_content(self, i): 
-            iProj = np.dot( self.Jproj[1:4, 0:9], self.Hevec[0:9, i:i+1] );
+            iProj = np.dot( self.Jproj[1:4, 0:9], self.evec[0:9, i:i+1] );
             norm2 = np.dot( np.matrix.getH(iProj), iProj );
             return norm2[0,0].real;
 
         def singlet_content(self, i): 
-            iProj = np.dot( self.Jproj[0:1, 0:9], self.Hevec[0:9, i:i+1] );
+            iProj = np.dot( self.Jproj[0:1, 0:9], self.evec[0:9, i:i+1] );
             norm2 = np.dot( np.matrix.getH(iProj), iProj );
             return norm2[0,0].real;
 
   
         def sz_elem(self, i): 
             Sz2 =np.kron(self.triplet.Sz, self.triplet.Id) + np.kron(self.triplet.Id, self.triplet.Sz)
-            vi = self.Hevec[:,i]
+            vi = self.evec[:,i]
             Sz2ii = reduce(np.dot, [ np.matrix.getH(vi), Sz2, vi ])
             return Sz2ii[0,0].real 
 
-        def size(self): 
-            return 9
+        def singlet_projector(self):
+            singlet_state = np.asmatrix(self.Jproj[0:1,:])
+            return np.dot( np.matrix.getH(singlet_state), singlet_state )
+
+
+        def Bac_field_basis_matrix(self): 
+           return np.kron(self.triplet.Sx, self.triplet.Id) + np.kron(self.triplet.Id, self.triplet.Sx)
 
         def print_info(self) : 
             print("# D %g" % self.D)
@@ -155,15 +161,94 @@ class TwoTriplets :
             print("# J %g" % self.J)
             print("# Jip %g" % self.Jdip)
 
+
+class ODMR_Signal : 
+    """ 
+    * ODMR_Signal
+    *
+    * Output : Computes ODMR and magnetic resonance signals 
+    *
+    * Input : spins, a reference on SpinSystem object
+    * SpinSystem should define 
+    * spins.matrix_size
+    * spins.evec
+    * spins.eval
+    * spins.singlet_projector()
+    * spins.Bac_field_basis_matrix()
+    """
+    def __init__(self, spin_system) : 
+        self.spins = spin_system 
+        self.rho0 = np.empty(self.spins.matrix_size, dtype=float)
+        self.rho2 = np.empty([self.spins.matrix_size, self.spins.matrix_size], dtype=np.complex_) 
+        self.gamma = None
+        self.gamma_diag = None
+
+    def update_from_spin_hamiltonian(self) : 
+        self.Sproj_eig_basis = reduce(np.dot, [ np.matrix.getH( self.spins.evec ), self.spins.singlet_projector(), self.spins.evec])
+	self.V = reduce(np.dot, [ np.matrix.getH( self.spins.evec ), self.spins.Bac_field_basis_matrix(), self.spins.evec ])
+        
+    def omega_nm(self, n, m) :
+        return self.spins.eval[n] - self.spins.eval[m]
+
+    def load_rho0_thermal(self, Temp):  
+        sum = 0
+        for i in range(self.spins.matrix_size) : 
+            rho0_i = math.exp(- self.spins.eval[i] / Temp)
+            self.rho0[i] = rho_i
+            sum += rho_i
+        self.rho0 /= sum
+
+    def load_rho0_from_singlet(self) : 
+        sum = 0
+        for i in range(self.spins.matrix_size) : 
+            self.rho0[i] = self.Sproj_eig_basis[i, i].real
+            sum += self.rho0[i]
+        self.rho0 /= sum
+
+    def chi1(self, omega):
+       c1 = 0j
+       for m in range(self.spins.matrix_size): 
+	  for n in range(self.spins.matrix_size): 	     
+	     # the contribution to chi1 vanishes for n == m, whether gamma is the same for diagonal and non diagonal elements is not relvant here 
+	     c1 -= (self.rho0[m] - self.rho0[n]) * self.V[m, n] * self.V[n, m] / ( self.omega_nm(n, m) - omega - 1j * self.gamma );
+       return c1
+
+
+    def find_rho2(self, omega) :
+       for m in range(self.spins.matrix_size): 
+	  for n in range(self.spins.matrix_size):
+             rrr = 0j
+             for nu in range(self.spins.matrix_size): 
+                 for p in [-1., 1.]: 
+                     gamma_nm = self.gamma_diag if m == n else self.gamma
+                     rrr += (self.rho0[m] - self.rho0[nu]) * self.V[n, nu] * self.V[nu, m] / ( ( self.omega_nm(n, m) - 1j * gamma_nm ) * ( self.omega_nm(nu, m) - omega * p - 1j * self.gamma ) )
+                     rrr -= (self.rho0[nu] - self.rho0[n]) * self.V[n, nu] * self.V[nu, m] / ( ( self.omega_nm(n, m) - 1j * gamma_nm ) * ( self.omega_nm(n, nu) - omega * p - 1j * self.gamma ) )
+             self.rho2[n, m] = rrr
+
+
+    def odmr(self, omega):
+       odmr_amp = 0j
+       self.find_rho2(omega)
+       
+       for m in range(self.spins.matrix_size):
+	  for n in range(self.spins.matrix_size):
+             odmr_amp += self.rho2[m , n] * self.Sproj_eig_basis[n, m]
+
+       return odmr_amp.real
+
+    
+    
+
+
 def main():
-        t = TwoTriplets()
-        t.D = 1
-        t.E = 0.3
-        t.J = 0.0
-        t.B = 5
-        t.Jdip = 0.1
+        triplet_pair = TwoTriplets()
+        triplet_pair.D = 1
+        triplet_pair.E = 0.01
+        triplet_pair.J = 0.0
+        triplet_pair.B = 5
+        triplet_pair.Jdip = 0.02
         Nsamples = 5000
-        t.print_info()
+        triplet_pair.print_info()
 
         np.random.seed(1)
 
@@ -172,11 +257,11 @@ def main():
             V1 = 2. * math.pi * np.random.rand(3)
             V2 = 2. * math.pi * np.random.rand(3)
             Ur = random_unit_vector()
-            t.load_field_basis_Hamiltonian( V1, V2, Ur )
-            t.diag()
+            triplet_pair.load_field_basis_Hamiltonian( V1, V2, Ur )
+            triplet_pair.diag()
             si = 0 
             for i in range(0,9):
-                si += math.pow(t.quintet_content(i), 4.0)
+                si += math.pow(triplet_pair.quintet_content(i), 4.0)
 
             if si > quintet_max:
                 quintet_max = si
@@ -194,11 +279,25 @@ def main():
         print("%g   %g   %g" % ( quintet_angles2[0], quintet_angles2[1], quintet_angles2[2] ) )
         print("# Rdip ")
         print("%g %g %g" % ( quintet_rdip[0], quintet_rdip[1], quintet_rdip[2] ) )
-        t.load_field_basis_Hamiltonian( quintet_angles1, quintet_angles2, quintet_rdip )    
-        t.diag()
-        print("# qunitet/triplet projections at B = " + str(t.B))
+        triplet_pair.load_field_basis_Hamiltonian( quintet_angles1, quintet_angles2, quintet_rdip )    
+        triplet_pair.diag()
+        print("# qunitet/triplet projections at B = " + str(triplet_pair.B))
         for i in range(0,9): 
-            print("%g   %g   %g   %g" % ( t.quintet_content(i), t.triplet_content(i), t.singlet_content(i), t.sz_elem(i) ) )
+            print("%g   %g   %g   %g" % ( triplet_pair.quintet_content(i), triplet_pair.triplet_content(i), triplet_pair.singlet_content(i), triplet_pair.sz_elem(i) ) )
+
+        B_span = triplet_pair.B
+        odmr_from_triplets = ODMR_Signal(triplet_pair)
+        odmr_from_triplets.update_from_spin_hamiltonian()
+        odmr_from_triplets.load_rho0_from_singlet()
+        odmr_from_triplets.gamma = 1e-2
+        odmr_from_triplets.gamma_diag = 1e-2
+        
+        for omega in np.arange(0.0, 2.0 * B_span, 1e-3 * B_span):
+            chi1 = odmr_from_triplets.chi1(omega)
+            odmr = 0 
+            # odmr = odmr_from_triplets.odmr(omega)
+            sys.stderr.write("%g   %g   %g   %g\n" % ( omega, chi1.real, chi1.imag, odmr ))
+        
 
 main()
 		
