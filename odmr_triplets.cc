@@ -257,13 +257,13 @@ public :
  */ 
 
 template <class SpinSystem> class ODMR_Signal { 
-    typedef Matrix<double, SpinSystem::matrix_size, 1> SpinVector;
-    typedef Matrix<complexg, SpinSystem::matrix_size, SpinSystem::matrix_size> SpinMatrix;
+    typedef Matrix<double, SpinSystem::matrix_size, 1> SpinVectord;
+    typedef Matrix<complexg, SpinSystem::matrix_size, SpinSystem::matrix_size> SpinMatrixcd;
 
-    SpinVector rho0;
-    SpinMatrix rho2;
-    SpinMatrix Sproj_eig_basis;
-    SpinMatrix V;
+    SpinVectord rho0;
+    SpinMatrixcd rho2;
+    SpinMatrixcd Sproj_eig_basis;
+    SpinMatrixcd V;
     SpinSystem &spins;
 
 public : 
@@ -308,38 +308,55 @@ public :
 	     // the contribution to chi1 vanishes for n == m, whether gamma is the same for diagonal and non diagonal elements is not relvant here 
 	     // 
 	     // cerr << n << "    " << m << "    " << abs(V(m, n)) << endl;
-	     c1 -= (rho0(m) - rho0(n)) * V(m, n) * V(n, m) / ( omega_nm(n, m) - omega - iii * gamma );
+	     c1 -= (rho0(m) - rho0(n)) * norm(V(n, m)) / ( omega_nm(n, m) - omega - iii * gamma );
 	  }
        }
        return c1;
     }    
 
 
-    void find_rho2(double omega) { 
+    // explicit calculation of rho2 - close to analytical formula but slow
+    void find_rho2_explicit(double omega) { 
        for (int m = 0; m < spins.matrix_size ; m++) { 
 	  for (int n = 0; n < spins.matrix_size ; n++) { 
 	     complexg rrr = 0.0;
 	     for (int nu = 0; nu < spins.matrix_size ; nu++) { 
 	        for (int p = -1; p <= 1; p += 2) { 
-
-		  //
-		  // relaxation may be different for diaganonal and non diagonal terms
-		  //
-
-		  double gamma_nm = (n == m) ? gamma_diag : gamma;
-
-		  rrr += (rho0(m) - rho0(nu)) * V(n, nu) * V(nu, m) 
-		    / ( ( omega_nm(n, m) - iii * gamma_nm ) * ( omega_nm(nu, m) - omega * (double) p - iii * gamma ) );
-		  rrr -= (rho0(nu) - rho0(n)) * V(n, nu) * V(nu, m) 
-		    / ( ( omega_nm(n, m) - iii * gamma_nm ) * ( omega_nm(n, nu) - omega * (double) p - iii * gamma ) );
-
-
+		  // Vtmp(nu, m) = (rho0(m) - rho0(nu)) * V(nu, m) / ( omega_nm(nu, m) - omega * (double) p - iii * gamma )
+		   rrr += V(n, nu) * (rho0(m) - rho0(nu)) * V(nu, m) / ( omega_nm(nu, m) - omega * (double) p - iii * gamma );
+		  //  nu->n and m->nu : Vtmp(n, nu)  
+		   rrr -= ((rho0(nu) - rho0(n)) * V(n, nu) / ( omega_nm(n, nu) - omega * (double) p - iii * gamma )) * V(nu, m);
 		}
 	     }
-	     rho2(n, m) = rrr;
+	     // relaxation may be different for diaganonal and non diagonal terms
+	     double gamma_nm = (n == m) ? gamma_diag : gamma;
+	     rho2(n, m) = rrr / ( omega_nm(n, m) - iii * gamma_nm );
+	  }
+       }
+
+    }
+
+
+    // optimized calculation of rho2
+    void find_rho2(double omega) { 
+       SpinMatrixcd Vtmp = SpinMatrixcd::Zero();
+       for (int m = 0; m < spins.matrix_size ; m++) { 
+	  for (int nu = 0; nu < spins.matrix_size ; nu++) { 
+	     for (int p = -1; p <= 1; p += 2) { 
+	        Vtmp(nu, m) += (rho0(m) - rho0(nu)) * V(nu, m) / (omega_nm(nu, m) - omega * (double) p - iii * gamma);
+	     }
+	  }
+       }      
+       rho2 = V * Vtmp - Vtmp * V;
+       for (int m = 0; m < spins.matrix_size ; m++) { 
+	  for (int n = 0; n < spins.matrix_size ; n++) { 
+	     // relaxation may be different for diaganonal and non diagonal terms
+	     double gamma_nm = (n == m) ? gamma_diag : gamma;
+	     rho2(n, m) /= ( omega_nm(n, m) - iii * gamma_nm );
 	  }
        }
     }
+
 
     double odmr(double omega) { 
        double odmr_amp = 0.0;

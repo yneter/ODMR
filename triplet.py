@@ -210,20 +210,35 @@ class ODMR_Signal :
        for m in range(self.spins.matrix_size): 
 	  for n in range(self.spins.matrix_size): 	     
 	     # the contribution to chi1 vanishes for n == m, whether gamma is the same for diagonal and non diagonal elements is not relvant here 
-	     c1 -= (self.rho0[m] - self.rho0[n]) * self.V[m, n] * self.V[n, m] / ( self.omega_nm(n, m) - omega - 1j * self.gamma );
+              Vmn = self.V[m, n]
+              Vmn_abs2 = Vmn.real * Vmn.real + Vmn.imag * Vmn.imag
+              c1 -= (self.rho0[m] - self.rho0[n]) * Vmn_abs2 / ( self.omega_nm(n, m) - omega - 1j * self.gamma );
        return c1
 
 
-    def find_rho2(self, omega) :
-       for m in range(self.spins.matrix_size): 
-	  for n in range(self.spins.matrix_size):
-             rrr = 0j
-             for nu in range(self.spins.matrix_size): 
-                 for p in [-1., 1.]: 
-                     gamma_nm = self.gamma_diag if m == n else self.gamma
-                     rrr += (self.rho0[m] - self.rho0[nu]) * self.V[n, nu] * self.V[nu, m] / ( ( self.omega_nm(n, m) - 1j * gamma_nm ) * ( self.omega_nm(nu, m) - omega * p - 1j * self.gamma ) )
-                     rrr -= (self.rho0[nu] - self.rho0[n]) * self.V[n, nu] * self.V[nu, m] / ( ( self.omega_nm(n, m) - 1j * gamma_nm ) * ( self.omega_nm(n, nu) - omega * p - 1j * self.gamma ) )
-             self.rho2[n, m] = rrr
+    def find_rho2_explicit(self, omega) :
+        for m in range(self.spins.matrix_size): 
+            for n in range(self.spins.matrix_size):
+                rrr = 0j
+                for nu in range(self.spins.matrix_size): 
+                    for p in [-1., 1.]: 
+                        gamma_nm = self.gamma_diag if m == n else self.gamma
+                        rrr += (self.rho0[m] - self.rho0[nu]) * self.V[n, nu] * self.V[nu, m] / ( ( self.omega_nm(n, m) - 1j * gamma_nm ) * ( self.omega_nm(nu, m) - omega * p - 1j * self.gamma ) )
+                        rrr -= (self.rho0[nu] - self.rho0[n]) * self.V[n, nu] * self.V[nu, m] / ( ( self.omega_nm(n, m) - 1j * gamma_nm ) * ( self.omega_nm(n, nu) - omega * p - 1j * self.gamma ) )
+                self.rho2[n, m] = rrr
+
+
+    def find_rho2(self, omega):
+        Vtmp = np.zeros( (self.spins.matrix_size, self.spins.matrix_size), dtype=np.complex_) 
+        for m in range(self.spins.matrix_size):
+            for nu in range(self.spins.matrix_size):
+                for p in [-1., 1.]:
+                    Vtmp[nu, m] += (self.rho0[m] - self.rho0[nu]) * self.V[nu, m] / (self.omega_nm(nu, m) - omega * p - 1j * self.gamma)
+        self.rho2 = np.dot(self.V, Vtmp) - np.dot(Vtmp, self.V)
+        for m in range(self.spins.matrix_size):
+            for n in range(self.spins.matrix_size):
+                gamma_nm = self.gamma_diag if m == n else self.gamma
+                self.rho2[n, m] /= ( self.omega_nm(n, m) - 1j * gamma_nm );
 
 
     def odmr(self, omega):
@@ -294,8 +309,7 @@ def main():
         
         for omega in np.arange(0.0, 2.0 * B_span, 1e-3 * B_span):
             chi1 = odmr_from_triplets.chi1(omega)
-            odmr = 0 
-            # odmr = odmr_from_triplets.odmr(omega)
+            odmr = odmr_from_triplets.odmr(omega)
             sys.stderr.write("%g   %g   %g   %g\n" % ( omega, chi1.real, chi1.imag, odmr ))
         
 
