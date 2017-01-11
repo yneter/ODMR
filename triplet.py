@@ -1,13 +1,10 @@
 
 import numpy as np
 from numpy.linalg import eig
-from pylab import *
 import cmath 
-from math import *
-from scipy.optimize import fsolve, brentq
-from scipy.optimize import minimize_scalar
+import math
 import sys
-
+from functools import reduce 
 
 def random_unit_vector() : 
     phi = 2.0 * math.pi * np.random.random()
@@ -185,7 +182,7 @@ class ODMR_Signal :
 
     def update_from_spin_hamiltonian(self) : 
         self.Sproj_eig_basis = reduce(np.dot, [ np.matrix.getH( self.spins.evec ), self.spins.singlet_projector(), self.spins.evec])
-	self.V = reduce(np.dot, [ np.matrix.getH( self.spins.evec ), self.spins.Bac_field_basis_matrix(), self.spins.evec ])
+        self.V = reduce(np.dot, [ np.matrix.getH( self.spins.evec ), self.spins.Bac_field_basis_matrix(), self.spins.evec ])
         
     def omega_nm(self, n, m) :
         return self.spins.eval[n] - self.spins.eval[m]
@@ -208,11 +205,11 @@ class ODMR_Signal :
     def chi1(self, omega):
        c1 = 0j
        for m in range(self.spins.matrix_size): 
-	  for n in range(self.spins.matrix_size): 	     
-	     # the contribution to chi1 vanishes for n == m, whether gamma is the same for diagonal and non diagonal elements is not relvant here 
-              Vmn = self.V[m, n]
-              Vmn_abs2 = Vmn.real * Vmn.real + Vmn.imag * Vmn.imag
-              c1 -= (self.rho0[m] - self.rho0[n]) * Vmn_abs2 / ( self.omega_nm(n, m) - omega - 1j * self.gamma );
+           for n in range(self.spins.matrix_size): 	     
+               # the contribution to chi1 vanishes for n == m, whether gamma is the same for diagonal and non diagonal elements is not relvant here 
+               Vmn = self.V[m, n]
+               Vmn_abs2 = Vmn.real * Vmn.real + Vmn.imag * Vmn.imag
+               c1 -= (self.rho0[m] - self.rho0[n]) * Vmn_abs2 / ( self.omega_nm(n, m) - omega - 1j * self.gamma );
        return c1
 
 
@@ -246,8 +243,8 @@ class ODMR_Signal :
        self.find_rho2(omega)
        
        for m in range(self.spins.matrix_size):
-	  for n in range(self.spins.matrix_size):
-             odmr_amp += self.rho2[m , n] * self.Sproj_eig_basis[n, m]
+           for n in range(self.spins.matrix_size):
+               odmr_amp += self.rho2[m , n] * self.Sproj_eig_basis[n, m]
 
        return odmr_amp.real
 
@@ -314,4 +311,4 @@ def main():
         
 
 main()
-		
+     	
