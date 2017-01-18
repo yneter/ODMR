@@ -1,6 +1,7 @@
 #include <iostream>
 #include <Eigen/Dense>
 #include <Eigen/KroneckerProduct>
+#include <Eigen/Geometry>
 #include <vector>
 
 using namespace Eigen;
@@ -33,21 +34,7 @@ typedef Matrix<complexg, 9, 9> Matrix9cd;
 typedef Matrix<double, 9, 1> Vector9d; 
 
 
-class TripletHamiltonian { 
-public:
-    Matrix3cd Sx;
-    Matrix3cd Sy;
-    Matrix3cd Sz;
-    Matrix3cd Id;
-
-    TripletHamiltonian(void) { 
-       Id << 1.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 1.0;
-       Sz << 1.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, -1.0;
-       Sx << 0.0, 1.0, 0.0, 1.0, 0.0, 1.0, 0.0, 1.0, 0.0;
-       Sx /= sqrt(2.0);
-       Sy << 0.0, 1.0, 0.0, -1.0, 0.0, 1.0, 0.0, -1.0, 0.0;
-       Sy *= -iii / sqrt(2.0);
-    }
+class Rotation {
 
     Matrix3d euler_matrix_z1x2z3(double z1, double x2, double z3) { 
        double cosz1 = cos(z1);
@@ -75,28 +62,138 @@ public:
        return Z1 * X2 * Z3;
     }
 
+    void mat2euler(const Matrix3d &M, Vector3d &vec) {
+       std::numeric_limits<double> double_limit;
+       double sy_thresh = double_limit.min() * 4.;
+       double sy = sqrt(M(2,0)*M(2,0) + M(2,1)*M(2,1));
+       double z1, x2, z3;
+       if (sy > sy_thresh) { 
+	  x2 = acos(M(2,2));
+	  z1 = atan2(M(0,2), -M(1,2));
+	  z3 = atan2(M(2,0), M(2,1));
+       } else {
+	  x2 = 0;
+	  z3 = 0;
+	  z1 = atan2(M(1,0), M(1,1));
+       }
+       vec << z1, x2, z3;
+    }
+
+    Vector3d angles;
+    Matrix3d M;
+
+    void init_from_angles(double z1, double x2, double z3) { 
+       angles << z1, x2, z3;
+       M = euler_matrix_z1x2z3(z1, x2, z3);
+    }
+
+    void init_from_matrix(const Matrix3d &Mnew) {
+       M = Mnew;
+       mat2euler(M, angles);
+    }
+
+public : 
+
+    const Matrix3d &matrix(void) {
+       return M;
+    }
+
+    const Matrix3d &matrix(const Matrix3d &Mnew) {
+       init_from_matrix(Mnew);
+       return M;
+    }
+
+    Rotation(void) { 
+       init_from_angles(0, 0, 0);
+    }
+
+    Rotation(double z1, double x2, double z3) { 
+       init_from_angles(z1, x2, z3);
+    }
+
+    Rotation(const Vector3d &v) { 
+       init_from_angles(v[0], v[1], v[2]);
+    }
+
+    Rotation(const Matrix3d &Mnew) { 
+       init_from_matrix(Mnew);
+    }
+
+    void operator = (const Matrix3d &Mnew) { 
+       init_from_matrix(Mnew);
+    }
+
+    const Vector3d &euler_angles(void) {
+       return angles;
+    }
+
+    const Vector3d &euler_angles(double z1, double x2, double z3) {
+       init_from_angles(z1, x2, z3);
+       return angles;
+    }
+
+    const Vector3d &euler_angles(const Vector3d &v) {
+       init_from_angles(v[0], v[1], v[2]);
+       return angles;
+    }
+
+    void random(void) { 
+       Matrix3d R;
+       R = AngleAxis<double> ( 2.0 * M_PI * myrand(), random_unit_vector() );
+       init_from_matrix(R);
+
+       /***
+       double z1 = 2.0 * M_PI * myrand();
+       double x2 = 2.0 * M_PI * myrand();
+       double z2 = 2.0 * M_PI * myrand();
+       init_from_angles(z1, x2, z3);
+       ***/
+    }
+};
+
+
+
+class TripletHamiltonian { 
+public:
+    Matrix3cd Sx;
+    Matrix3cd Sy;
+    Matrix3cd Sz;
+    Matrix3cd Id;
+
+    TripletHamiltonian(void) { 
+       Id << 1.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 1.0;
+       Sz << 1.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, -1.0;
+       Sx << 0.0, 1.0, 0.0, 1.0, 0.0, 1.0, 0.0, 1.0, 0.0;
+       Sx /= sqrt(2.0);
+       Sy << 0.0, 1.0, 0.0, -1.0, 0.0, 1.0, 0.0, -1.0, 0.0;
+       Sy *= -iii / sqrt(2.0);
+    }
+
     Matrix3cd zeeman(double Bx, double By, double Bz) { 
        return Bx * Sx + By * Sy + Bz * Sz;
     }
 
-    Matrix3cd fine_structure(double D, double E, double z1, double x2, double z3) { 
-       Matrix3d r_matrix = euler_matrix_z1x2z3(z1, x2, z3);
+    Matrix3cd fine_structure(double D, double E,  Rotation rot) { 
+       Matrix3d r_matrix = rot.matrix();
        Matrix3cd rSx = r_matrix(0, 0) * Sx + r_matrix(0, 1) * Sy + r_matrix(0, 2) * Sz;
        Matrix3cd rSy = r_matrix(1, 0) * Sx + r_matrix(1, 1) * Sy + r_matrix(1, 2) * Sz;
        Matrix3cd rSz = r_matrix(2, 0) * Sx + r_matrix(2, 1) * Sy + r_matrix(2, 2) * Sz;
        return D * (rSz * rSz - 2.0*Id/3.0) + E * (rSy * rSy -  rSx * rSx);
     }
 
+    Matrix3cd fine_structure(double D, double E) { 
+       return D * (Sz * Sz - 2.0*Id/3.0) + E * (Sy * Sy -  Sx * Sx);
+    }
 
     Matrix3cd spin_hamiltonian_mol_basis(double D, double E, double B, double theta, double phi) { 
        double Bx = B * sin(theta) * cos(phi);
        double By = B * sin(theta) * sin(phi);
        double Bz = B * cos(theta);
-       return fine_structure(D, E, 0, 0, 0) + Sx * Bx + Sy * By + Sz * Bz;
+       return fine_structure(D, E) + Sx * Bx + Sy * By + Sz * Bz;
     }
 
     Matrix3cd spin_hamiltonian_field_basis(double D, double E, double B, double theta, double phi) { 
-       return fine_structure(D, E, 0, -theta, -phi + M_PI/2.0) + Sz * B;
+       return fine_structure(D, E, Rotation(0, -theta, -phi + M_PI/2.0)) + Sz * B;
     }
 };
 
@@ -162,28 +259,28 @@ public :
     }
 
 
-    void load_field_basis_Hamiltonian(Vector3d triplet1_angles, Vector3d triplet2_angles) {
-       Matrix3cd H1 = triplet.fine_structure(D, E, triplet1_angles[0], triplet1_angles[1], triplet1_angles[2]) + B * triplet.Sz; 
+    void load_field_basis_Hamiltonian( Rotation &triplet1_rotation,  Rotation &triplet2_rotation) {
+       Matrix3cd H1 = triplet.fine_structure(D, E, triplet1_rotation) + B * triplet.Sz; 
 
-       Matrix3cd H2 = triplet.fine_structure(D, E, triplet2_angles[0], triplet2_angles[1], triplet2_angles[2]) + B * triplet.Sz; 
+       Matrix3cd H2 = triplet.fine_structure(D, E, triplet2_rotation) + B * triplet.Sz; 
 
        Hfull = tensor_product(H1, triplet.Id) + tensor_product(triplet.Id, H2) + J * exchange_matrix();
     }
 
-    void load_field_basis_Hamiltonian(Vector3d triplet1_angles, Vector3d triplet2_angles, Vector3d rdip) {
-       load_field_basis_Hamiltonian(triplet1_angles, triplet2_angles);
+    void load_field_basis_Hamiltonian( Rotation &triplet1_rotation,  Rotation &triplet2_rotation, Vector3d rdip) {
+       load_field_basis_Hamiltonian(triplet1_rotation, triplet2_rotation);
        Hfull += Jdip * dipole_dipole_matrix(rdip);
     }
     
 
-    void load_mol1_basis_Hamiltonian(double theta, double phi, Vector3d triplet2_angles) {
+    void load_mol1_basis_Hamiltonian(double theta, double phi,  Rotation &triplet2_rotation) {
        double Bx = B * sin(theta) * cos(phi);
        double By = B * sin(theta) * sin(phi);
        double Bz = B * cos(theta);
 
        Matrix3cd Hz = triplet.zeeman(Bx, By, Bz);
-       Matrix3cd H1 = triplet.fine_structure(D, E, 0, 0, 0) + Hz;
-       Matrix3cd H2 = triplet.fine_structure(D, E, triplet2_angles[0], triplet2_angles[1], triplet2_angles[2]) + Hz; 
+       Matrix3cd H1 = triplet.fine_structure(D, E) + Hz;
+       Matrix3cd H2 = triplet.fine_structure(D, E, triplet2_rotation) + Hz; 
 
        Hfull = tensor_product(H1, triplet.Id) + tensor_product(triplet.Id, H2) + J * exchange_matrix();
     }
@@ -387,22 +484,18 @@ int main()
 
     double quintet_max = 0.0;
 
-    Vector3d quintet_angles1;
-    Vector3d quintet_angles2;
-    Vector3d quintet_rdip;
+    Rotation quintet_t1_rot;
+    Rotation quintet_t2_rot;
+    Vector3d quintet_rdip = random_unit_vector();
 
     int Nsamples = 5000;
     std::vector<double> slist(Nsamples);
     for (int count = 0; count < Nsamples; count++) { 
-       Vector3d angles1;
-       Vector3d angles2;
-       Vector3d rdip;
-       for (int i=0; i<3; i++) { 
-	  angles1[i] = 2.0 * M_PI * myrand();
-	  angles2[i] = 2.0 * M_PI * myrand();
-       }
-       rdip = random_unit_vector();
-       triplet_pair.load_field_basis_Hamiltonian(angles1, angles2, rdip );
+       Rotation triplet1_rot, triplet2_rot;
+       triplet1_rot.random();
+       triplet2_rot.random();
+       Vector3d rdip  = random_unit_vector();
+       triplet_pair.load_field_basis_Hamiltonian(triplet1_rot, triplet2_rot, rdip );
        triplet_pair.diag(); 
 
        double si = 0.0;
@@ -414,45 +507,59 @@ int main()
        }
        if (si > quintet_max) { 
 	  quintet_max = si;
-	  quintet_angles1 = angles1;
-	  quintet_angles2 = angles2;
+	  quintet_t1_rot = triplet1_rot;
+	  quintet_t2_rot = triplet2_rot;
 	  quintet_rdip = rdip;
        }
        slist[count] = si;
     }
 
-
     cout << "# quintet_max " << quintet_max << endl;
     cout << "# triplet Euler angles :" << endl;
-    for (int i = 0; i < 3; i++) cout << quintet_angles1[i] << "   ";
+    for (int i = 0; i < 3; i++) cout << quintet_t1_rot.euler_angles()[i] << "   ";
     cout << endl;
-    for (int i = 0; i < 3; i++) cout << quintet_angles2[i] << "   ";
+    for (int i = 0; i < 3; i++) cout << quintet_t2_rot.euler_angles()[i] << "   ";
     cout << endl;
     cout << "# Rdip :" << endl;
     for (int i = 0; i < 3; i++) cout << quintet_rdip[i] << "   ";
     cout << endl;
-    
-    triplet_pair.load_field_basis_Hamiltonian(quintet_angles1, quintet_angles2, quintet_rdip);
+
+    triplet_pair.load_field_basis_Hamiltonian(quintet_t1_rot, quintet_t2_rot, quintet_rdip);
     triplet_pair.diag();
     cout << "# qunitet/triplet projections at B = " << triplet_pair.B << endl;
     for (int i = 0; i < triplet_pair.matrix_size ; i++) 
       cout << triplet_pair.quintet_content(i) << "    " << triplet_pair.triplet_content(i) << "    " << triplet_pair.singlet_content(i) << "    " << triplet_pair.sz_elem(i) << endl;
 
-    double B_span = triplet_pair.B; 
-    ODMR_Signal<TwoTriplets> odmr_from_triplets(triplet_pair);    
-    //    triplet_pair.Jdip = 0.05;
-    //    triplet_pair.load_field_basis_Hamiltonian(quintet_angles1, quintet_angles2, quintet_rdip);
-    //    triplet_pair.diag();
-    odmr_from_triplets.update_from_spin_hamiltonian();
-    odmr_from_triplets.load_rho0_from_singlet();
-    //    odmr_from_triplets.load_rho0_thermal(5.0);
-    odmr_from_triplets.gamma = 1e-2;
-    odmr_from_triplets.gamma_diag = 1e-2;
 
-    for (double omega = 0; omega <= 2.0 * B_span; omega += 1e-3 * B_span) { 
-       complexg chi1 = odmr_from_triplets.chi1(omega);
-       double odmr = odmr_from_triplets.odmr(omega);
-       cerr << omega << "     " << real(chi1) << "     " << imag(chi1) << "     " << odmr << endl;
+    const int N_averages = 10000;
+    double B_span = 2.0 * triplet_pair.B;     
+    const int n_omega_samples = 1000;
+    vector<complexg> chi_B(n_omega_samples, 0.0);
+    vector<double> odmr_B(n_omega_samples, 0.0);
+
+    for (int sample = 0; sample < N_averages; sample++) {        
+       Rotation rot1;
+       Rotation r1_sample = (rot1.matrix() * quintet_t1_rot.matrix()).eval();
+       Rotation r2_sample = (rot1.matrix() * quintet_t2_rot.matrix()).eval();
+       Vector3d rdip_sample = rot1.matrix() * quintet_rdip;
+       triplet_pair.load_field_basis_Hamiltonian(r1_sample, r2_sample, rdip_sample);
+       triplet_pair.diag();
+       ODMR_Signal<TwoTriplets> odmr_from_triplets(triplet_pair);    
+       odmr_from_triplets.update_from_spin_hamiltonian();
+       odmr_from_triplets.load_rho0_from_singlet();
+       odmr_from_triplets.gamma = 1e-2;
+       odmr_from_triplets.gamma_diag = 1e-2;
+
+       for (int omega_index = 0; omega_index < n_omega_samples; omega_index++) { 
+	  double omega = B_span * (double)omega_index/(double)(n_omega_samples-1);
+	  chi_B[omega_index] += odmr_from_triplets.chi1(omega)  / (double) N_averages;
+	  odmr_B[omega_index] += odmr_from_triplets.odmr(omega) / (double) N_averages;
+       }
     }
 
+
+    for (int omega_index = 0; omega_index < n_omega_samples; omega_index++) { 
+       double omega = B_span * (double)omega_index/(double)(n_omega_samples-1);
+       cout  << omega << "   " << real(chi_B[omega_index]) << "    " << imag(chi_B[omega_index]) << "     " << odmr_B[omega_index] << endl;
+    }
 }

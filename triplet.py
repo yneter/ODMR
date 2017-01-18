@@ -13,6 +13,91 @@ def random_unit_vector() :
     return np.array([r * math.cos(phi), r * math.sin(phi), z ])
 
 
+
+class Rotation : 
+    """ 
+    * Rotation : provides a representation for 3D space rotations
+    * using euler angles (ZX'Z'' convention) or rotation matrices
+    """
+    def _euler2mat_z1x2z3(self, z1 = 0, x2 = 0, z3 = 0) :
+        cosz1 = math.cos(z1)
+        sinz1 = math.sin(z1)
+        Z1 = np.array(
+            [[cosz1, -sinz1, 0],
+             [sinz1, cosz1, 0],
+             [0, 0, 1]])
+
+    
+        cosx = math.cos(x2)
+        sinx = math.sin(x2)
+        X2 = np.array(
+            [[1, 0, 0],
+             [0, cosx, -sinx],
+             [0, sinx, cosx]])
+
+        cosz3 = math.cos(z3)
+        sinz3 = math.sin(z3)
+        Z3 = np.array(
+            [[cosz3, -sinz3, 0],
+             [sinz3, cosz3, 0],
+             [0, 0, 1]])
+            
+        return reduce(np.dot, [Z1, X2, Z3] )
+        
+
+    def _mat2euler(self, M):
+        M = np.asarray(M)
+        try:
+            sy_thresh = np.finfo(M.dtype).eps * 4
+        except ValueError:
+            sy_thresh = _FLOAT_EPS_4
+        r11, r12, r13, r21, r22, r23, r31, r32, r33 = M.flat
+        sy = math.sqrt(r31*r31 + r32*r32)
+        if sy > sy_thresh: 
+            x2 = math.acos(r33)
+            z1 = math.atan2(r13, -r23)
+            z3 = math.atan2(r31, r32)
+        else:
+            x2 = 0
+            z3 = 0
+            z1 = math.atan2(r21, r22)
+        return (z1, x2, z3)
+
+    def _init_from_angles(self, z1, x2, z3) :
+        self._z1, self._x2, self._z3 = z1, x2, z3
+        self._M = self._euler2mat_z1x2z3(self._z1, self._x2, self._z3)
+
+    def _init_from_matrix(self, matrix) :
+        self._M = np.asarray(matrix)
+        self._z1, self._x2, self._z3 = self._mat2euler(self._M)        
+
+    def __init__(self, arg1 = None, x2 = None, z3 = None): 
+        if arg1 is None :
+            self._init_from_angles(0, 0, 0) # loads identity matrix
+        elif x2 is not None:
+            self._init_from_angles(arg1, x2, z3)
+        elif arg1.size == 3:
+            self._init_from_angles(arg1[0], arg1[1], arg1[2])
+        else:
+            self._init_from_matrix(arg1)
+
+    def matrix(self, new_matrix = None) : 
+        if new_matrix is not None:
+            self._init_from_matrix(new_matrix)
+        return self._M
+
+    def euler_angles(self, z1 = None, x2 = None, z3 = None) : 
+        if z1 is not None:
+            self._init_from_angles(z1, x2, z3)
+        return (self._z1, self._x2, self._z3)
+
+
+    def random(self) : 
+        V = 2. * math.pi * np.random.rand(3)
+        self.euler_angles( V[0], V[1], V[2] )
+
+
+
 class TripletHamiltonian : 
         def __init__ (self) :
                 self.Id = np.matrix('1 0 0; 0 1 0; 0 0 1', dtype=np.complex_)
@@ -20,33 +105,8 @@ class TripletHamiltonian :
                 self.Sx = np.matrix('0 1 0; 1 0 1; 0 1 0', dtype=np.complex_) / math.sqrt(2.0)
                 self.Sy = - 1j * np.matrix('0 1 0; -1 0 1; 0 -1 0', dtype=np.complex_) / math.sqrt(2.0)
 
-        def euler2mat_z1x2z3(self, z1 = 0, x2 = 0, z3 = 0) :
-            cosz1 = math.cos(z1)
-            sinz1 = math.sin(z1)
-            Z1 = np.array(
-                    [[cosz1, -sinz1, 0],
-                     [sinz1, cosz1, 0],
-                     [0, 0, 1]])
-
-            cosx = math.cos(x2)
-            sinx = math.sin(x2)
-            X2 = np.array(
-                [[1, 0, 0],
-                 [0, cosx, -sinx],
-                 [0, sinx, cosx]])
-
-            cosz3 = math.cos(z3)
-            sinz3 = math.sin(z3)
-            Z3 = np.array(
-                [[cosz3, -sinz3, 0],
-                 [sinz3, cosz3, 0],
-                 [0, 0, 1]])
-            
-            return reduce(np.dot, [Z1, X2, Z3] )
-        
-        
-        def fine_structure(self, D, E, z1=0, x2=0, z3=0) :
-                rotation_matrix = self.euler2mat_z1x2z3(z1, x2, z3)
+        def fine_structure(self, D, E, rotation = Rotation() ) :
+                rotation_matrix = rotation.matrix()
                 rSx = rotation_matrix[0,0] * self.Sx + rotation_matrix[0,1] * self.Sy + rotation_matrix[0,2] * self.Sz
                 rSy = rotation_matrix[1,0] * self.Sx + rotation_matrix[1,1] * self.Sy + rotation_matrix[1,2] * self.Sz
                 rSz = rotation_matrix[2,0] * self.Sx + rotation_matrix[2,1] * self.Sy + rotation_matrix[2,2] * self.Sz        
@@ -63,7 +123,7 @@ class TripletHamiltonian :
                 return self.fine_structure(D, E) + self.zeeman(Bx, By, Bz)
 
         def spin_hamiltonian_field_basis(self, D, E, B, theta, phi) : 
-                return self.fine_structure(D, E, 0, -theta, -phi+math.pi/2.) + self.zeeman(0, 0, B)
+                return self.fine_structure(D, E, Rotatino(0, -theta, -phi+math.pi/2.)) + self.zeeman(0, 0, B)
 
         def eval(self, D, E, B, theta = 0, phi = 0, mol_basis = True) : 
                 if mol_basis: 
@@ -111,9 +171,9 @@ class TwoTriplets :
             uS = uvec[0] * self.triplet.Sx + uvec[1] * self.triplet.Sy + uvec[2] * self.triplet.Sz
             return (self.exchange_matrix() - 3. * np.kron(uS, uS))
 
-        def load_field_basis_Hamiltonian(self, triplet1_angles, triplet2_angles, dip_vec = None) : 
-            H1 = self.triplet.fine_structure(self.D, self.E, triplet1_angles[0], triplet1_angles[1], triplet1_angles[2]) + self.triplet.zeeman(0, 0, self.B)
-            H2 = self.triplet.fine_structure(self.D, self.E, triplet2_angles[0], triplet2_angles[1], triplet2_angles[2]) + self.triplet.zeeman(0, 0, self.B)
+        def load_field_basis_Hamiltonian(self, triplet1_rotation, triplet2_rotation, dip_vec = None) : 
+            H1 = self.triplet.fine_structure(self.D, self.E, triplet1_rotation) + self.triplet.zeeman(0, 0, self.B)
+            H2 = self.triplet.fine_structure(self.D, self.E, triplet2_rotation) + self.triplet.zeeman(0, 0, self.B)
             self.Hfull = np.kron(H1, self.triplet.Id) + np.kron(self.triplet.Id, H2) + self.J * self.exchange_matrix() 
             if dip_vec is not None:
                 self.Hfull += self.Jdip * self.dipole_dipole_matrix(dip_vec)
@@ -258,7 +318,7 @@ def main():
         triplet_pair.E = 0.01
         triplet_pair.J = 0.0
         triplet_pair.B = 5
-        triplet_pair.Jdip = 0.02
+        triplet_pair.Jdip = 0.1
         Nsamples = 5000
         triplet_pair.print_info()
 
@@ -269,7 +329,7 @@ def main():
             V1 = 2. * math.pi * np.random.rand(3)
             V2 = 2. * math.pi * np.random.rand(3)
             Ur = random_unit_vector()
-            triplet_pair.load_field_basis_Hamiltonian( V1, V2, Ur )
+            triplet_pair.load_field_basis_Hamiltonian( Rotation(V1), Rotation(V2), Ur )
             triplet_pair.diag()
             si = 0 
             for i in range(0,9):
@@ -281,33 +341,43 @@ def main():
                 quintet_angles2 = V2
                 quintet_rdip = Ur
 
-        # quintet_angles1 = np.array( [ 5.8308, 4.34636, 3.31015 ] )
-        # quintet_angles2 = np.array( [ 2.88627, 4.83054, 2.48384 ] )
-        # quintet_rdip = np.array( [ 0.0645974, 0.0136964, 0.997817 ] )
-
         print("# quintet_max " + str(quintet_max))
         print("# Euler angles ")
         print("%g   %g   %g" % ( quintet_angles1[0], quintet_angles1[1], quintet_angles1[2] ) )
         print("%g   %g   %g" % ( quintet_angles2[0], quintet_angles2[1], quintet_angles2[2] ) )
         print("# Rdip ")
         print("%g %g %g" % ( quintet_rdip[0], quintet_rdip[1], quintet_rdip[2] ) )
-        triplet_pair.load_field_basis_Hamiltonian( quintet_angles1, quintet_angles2, quintet_rdip )    
+        triplet_pair.load_field_basis_Hamiltonian( Rotation(quintet_angles1), Rotation(quintet_angles2), quintet_rdip )    
         triplet_pair.diag()
         print("# qunitet/triplet projections at B = " + str(triplet_pair.B))
         for i in range(0,9): 
             print("%g   %g   %g   %g" % ( triplet_pair.quintet_content(i), triplet_pair.triplet_content(i), triplet_pair.singlet_content(i), triplet_pair.sz_elem(i) ) )
 
-        B_span = triplet_pair.B
-        odmr_from_triplets = ODMR_Signal(triplet_pair)
-        odmr_from_triplets.update_from_spin_hamiltonian()
-        odmr_from_triplets.load_rho0_from_singlet()
-        odmr_from_triplets.gamma = 1e-2
-        odmr_from_triplets.gamma_diag = 1e-2
+        B_span = np.arange(0.0, 2.0 * triplet_pair.B, 1e-3 * triplet_pair.B)
+        chi_B = [ 0j ] * len(B_span)
+        odmr_B = [ 0 ] * len(B_span)
+        N_average = 10
+
+        for sample in range(N_average):
+            rot_for_sample = Rotation( 2. * math.pi * np.random.rand(3) )
+            R1 = np.dot( rot_for_sample.matrix(), Rotation(quintet_angles1).matrix() )
+            R2 = np.dot( rot_for_sample.matrix(), Rotation(quintet_angles2).matrix() ) 
+            Rdip = np.dot( rot_for_sample.matrix(), quintet_rdip )
+            triplet_pair.load_field_basis_Hamiltonian( Rotation(R1), Rotation(R2), Rdip )    
+            triplet_pair.diag()
+
+            odmr_from_triplets = ODMR_Signal(triplet_pair)
+            odmr_from_triplets.update_from_spin_hamiltonian()
+            odmr_from_triplets.load_rho0_from_singlet()
+            odmr_from_triplets.gamma = 1e-2
+            odmr_from_triplets.gamma_diag = 1e-2
         
-        for omega in np.arange(0.0, 2.0 * B_span, 1e-3 * B_span):
-            chi1 = odmr_from_triplets.chi1(omega)
-            odmr = odmr_from_triplets.odmr(omega)
-            sys.stderr.write("%g   %g   %g   %g\n" % ( omega, chi1.real, chi1.imag, odmr ))
+            for count, omega in enumerate(B_span):
+                chi_B[count] += odmr_from_triplets.chi1(omega)/N_average
+                odmr_B[count] += odmr_from_triplets.odmr(omega)/N_average 
+
+        for count, omega in enumerate(B_span):
+            sys.stderr.write("%g   %g   %g   %g\n" % ( omega, chi_B[count].real, chi_B[count].imag, odmr_B[count] ))
         
 
 main()
