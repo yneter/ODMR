@@ -12,8 +12,6 @@ def random_unit_vector() :
     r = math.sqrt(1.0 - z*z)
     return np.array([r * math.cos(phi), r * math.sin(phi), z ])
 
-
-
 class Rotation : 
     """ 
     * Rotation : provides a representation for 3D space rotations
@@ -93,8 +91,8 @@ class Rotation :
 
 
     def random(self) : 
-        V = 2. * math.pi * np.random.rand(3)
-        self.euler_angles( V[0], V[1], V[2] )
+        V = 2. * math.pi * np.random.random(), np.arccos( 2.0 * np.random.random() - 1.0 ), 2. * math.pi * np.random.random()
+        self.euler_angles( V )
 
 
 
