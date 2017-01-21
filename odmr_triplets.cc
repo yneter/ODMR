@@ -34,6 +34,8 @@ typedef Matrix<complexg, 9, 9> Matrix9cd;
 typedef Matrix<double, 9, 1> Vector9d; 
 
 
+
+
 class Rotation {
 
     Matrix3d euler_matrix_z1x2z3(double z1, double x2, double z3) { 
@@ -135,21 +137,44 @@ public :
     const Vector3d &euler_angles(const Vector3d &v) {
        init_from_angles(v[0], v[1], v[2]);
        return angles;
+    }        
+
+
+    // allows assignements like 
+    // Rotation R =  (Rotation::Y(phi) * Rotation::X(theta)).eval();
+    static Matrix3d X(double angle) { 
+       Vector3d ux;
+       ux << 1.0, 0.0, 0.0;
+       Matrix3d R;
+       R = AngleAxis<double> ( angle, ux);
+       return R;
     }
+
+    static Matrix3d Y(double angle) { 
+       Vector3d uy;
+       uy << 0.0,1.0,0.0;
+       Matrix3d R;
+       R = AngleAxis<double> ( angle, uy);
+       return R;
+    }
+
+    static Matrix3d Z(double angle) { 
+       Vector3d uz;
+       uz << 0.0,0.0,1.0;
+       Matrix3d R;
+       R = AngleAxis<double> ( angle, uz);
+       return R;
+    }
+
 
     void random(void) { 
-       Matrix3d R;
-       R = AngleAxis<double> ( 2.0 * M_PI * myrand(), random_unit_vector() );
-       init_from_matrix(R);
-
-       /***
-       double z1 = 2.0 * M_PI * myrand();
-       double x2 = 2.0 * M_PI * myrand();
-       double z2 = 2.0 * M_PI * myrand();
-       init_from_angles(z1, x2, z3);
-       ***/
+       M = AngleAxis<double> ( 2.0 * M_PI * myrand(), random_unit_vector() );
+       init_from_matrix(M);
     }
 };
+
+
+
 
 
 
@@ -474,9 +499,9 @@ int main()
 {
     TwoTriplets triplet_pair;
     triplet_pair.D = 1.0;
-    triplet_pair.E = 0.01;
+    triplet_pair.E = 0.15;
     triplet_pair.J = 0.0;
-    triplet_pair.Jdip = 0.1;
+    triplet_pair.Jdip = 0.03;
     triplet_pair.B = 5.0;
     triplet_pair.print_info();
 
@@ -490,20 +515,19 @@ int main()
 
     int Nsamples = 5000;
     std::vector<double> slist(Nsamples);
+
+    double theta = 1.1;
     for (int count = 0; count < Nsamples; count++) { 
        Rotation triplet1_rot, triplet2_rot;
-       triplet1_rot.random();
+       triplet1_rot = (Rotation::Y(0) * Rotation::X(theta)).eval();
        triplet2_rot.random();
        Vector3d rdip  = random_unit_vector();
-       triplet_pair.load_field_basis_Hamiltonian(triplet1_rot, triplet2_rot, rdip );
+       triplet_pair.load_field_basis_Hamiltonian(triplet1_rot, triplet2_rot, rdip);
        triplet_pair.diag(); 
-
        double si = 0.0;
        for (int i = 0; i < triplet_pair.matrix_size ; i++) { 
 	  double qi = triplet_pair.quintet_content(i);
 	  si += pow(qi, 4.0);
-	 //	 double s2i = triplet_pair.sz_elem(i);
-	 //	 si += pow(s2i, 4.0);
        }
        if (si > quintet_max) { 
 	  quintet_max = si;
@@ -516,11 +540,14 @@ int main()
 
     cout << "# quintet_max " << quintet_max << endl;
     cout << "# triplet Euler angles :" << endl;
+    cout << "# ";
     for (int i = 0; i < 3; i++) cout << quintet_t1_rot.euler_angles()[i] << "   ";
     cout << endl;
+    cout << "# ";
     for (int i = 0; i < 3; i++) cout << quintet_t2_rot.euler_angles()[i] << "   ";
     cout << endl;
     cout << "# Rdip :" << endl;
+    cout << "# ";
     for (int i = 0; i < 3; i++) cout << quintet_rdip[i] << "   ";
     cout << endl;
 
@@ -528,38 +555,55 @@ int main()
     triplet_pair.diag();
     cout << "# qunitet/triplet projections at B = " << triplet_pair.B << endl;
     for (int i = 0; i < triplet_pair.matrix_size ; i++) 
-      cout << triplet_pair.quintet_content(i) << "    " << triplet_pair.triplet_content(i) << "    " << triplet_pair.singlet_content(i) << "    " << triplet_pair.sz_elem(i) << endl;
+      cout << "# " << triplet_pair.quintet_content(i) << "    " << triplet_pair.triplet_content(i) << "    " << triplet_pair.singlet_content(i) << "    " << triplet_pair.sz_elem(i) << endl;
 
+
+    double cos1z = quintet_t1_rot.matrix()(2,2);
+    double cos2z = quintet_t2_rot.matrix()(2,2);
+    cout << "# angles to field " << endl;
+    cout << "# " << theta << "   " << "    " << quintet_max << "   "  << cos1z << "    " << cos2z << "    " << endl;
+
+    ODMR_Signal<TwoTriplets> odmr_from_triplets(triplet_pair);    
 
     const int N_averages = 10000;
-    double B_span = 2.0 * triplet_pair.B;     
+    double omega_span = 10.0;     
     const int n_omega_samples = 1000;
-    vector<complexg> chi_B(n_omega_samples, 0.0);
-    vector<double> odmr_B(n_omega_samples, 0.0);
 
-    for (int sample = 0; sample < N_averages; sample++) {        
-       Rotation rot1;
-       Rotation r1_sample = (rot1.matrix() * quintet_t1_rot.matrix()).eval();
-       Rotation r2_sample = (rot1.matrix() * quintet_t2_rot.matrix()).eval();
-       Vector3d rdip_sample = rot1.matrix() * quintet_rdip;
-       triplet_pair.load_field_basis_Hamiltonian(r1_sample, r2_sample, rdip_sample);
-       triplet_pair.diag();
-       ODMR_Signal<TwoTriplets> odmr_from_triplets(triplet_pair);    
-       odmr_from_triplets.update_from_spin_hamiltonian();
-       odmr_from_triplets.load_rho0_from_singlet();
-       odmr_from_triplets.gamma = 1e-2;
-       odmr_from_triplets.gamma_diag = 1e-2;
+    double B = 5.0;
+    //    for (double B = 0; B < 3.0; B += 0.01) { 
+
+       vector<complexg> chi_B(n_omega_samples, 0.0);
+       vector<double> odmr_B(n_omega_samples, 0.0);
+    
+       for (int sample = 0; sample < N_averages; sample++) {        
+	  Rotation rot1;
+	  rot1.random();
+	  Rotation r1_sample = (rot1.matrix() * quintet_t1_rot.matrix()).eval();
+	  Rotation r2_sample = (rot1.matrix() * quintet_t2_rot.matrix()).eval();
+	  Vector3d rdip_sample = rot1.matrix() * random_unit_vector(); // rot1.matrix() * quintet_rdip;
+	  triplet_pair.B = B;
+	  triplet_pair.load_field_basis_Hamiltonian(r1_sample, r2_sample, rdip_sample);
+	  triplet_pair.diag();
+
+	  odmr_from_triplets.update_from_spin_hamiltonian();
+	  //	  odmr_from_triplets.load_rho0_thermal(10.0);
+	  odmr_from_triplets.load_rho0_from_singlet();
+	  odmr_from_triplets.gamma = 3e-3;
+	  odmr_from_triplets.gamma_diag = 3e-3;
+
+	  for (int omega_index = 0; omega_index < n_omega_samples; omega_index++) { 
+	    double omega = omega_span * (double)omega_index/(double)(n_omega_samples-1);
+	    chi_B[omega_index] += odmr_from_triplets.chi1(omega)  / (double) N_averages;
+	    odmr_B[omega_index] += odmr_from_triplets.odmr(omega) / (double) N_averages;
+	  }
+       }
+
 
        for (int omega_index = 0; omega_index < n_omega_samples; omega_index++) { 
-	  double omega = B_span * (double)omega_index/(double)(n_omega_samples-1);
-	  chi_B[omega_index] += odmr_from_triplets.chi1(omega)  / (double) N_averages;
-	  odmr_B[omega_index] += odmr_from_triplets.odmr(omega) / (double) N_averages;
+	 double omega = omega_span * (double)omega_index/(double)(n_omega_samples-1);
+	 cout  << B << "    " << omega << "   " << real(chi_B[omega_index]) << "    " << imag(chi_B[omega_index]) << "     " << odmr_B[omega_index] << endl;
        }
-    }
 
-
-    for (int omega_index = 0; omega_index < n_omega_samples; omega_index++) { 
-       double omega = B_span * (double)omega_index/(double)(n_omega_samples-1);
-       cout  << omega << "   " << real(chi_B[omega_index]) << "    " << imag(chi_B[omega_index]) << "     " << odmr_B[omega_index] << endl;
-    }
+       cout << endl;
+       //    }
 }
