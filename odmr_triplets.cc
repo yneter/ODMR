@@ -1,6 +1,6 @@
 #include <iostream>
 #include <Eigen/Dense>
-#include <Eigen/KroneckerProduct>
+#include <unsupported/Eigen/KroneckerProduct>
 #include <Eigen/Geometry>
 #include <vector>
 
@@ -226,8 +226,7 @@ public:
 
 class TwoTriplets { 
     TripletHamiltonian triplet;
-
-    Matrix9cd Hfull;
+    Matrix9cd Hfull; // Hamiltonian 
     Matrix9cd Jproj;
     Matrix9cd tensor_product(const Matrix3cd &A, const Matrix3cd &B) { 
        return kroneckerProduct(A, B).eval();
@@ -255,8 +254,8 @@ public :
     double J;
     double Jdip;
     double B;
-    Vector9d eval;
-    Matrix9cd evec;
+    Vector9d eval;   // eigenvalues
+    Matrix9cd evec;  // eigenvectors
 
     TwoTriplets(void) : triplet() { 
 
@@ -352,6 +351,9 @@ public :
        return tensor_product(triplet.Sx, triplet.Id) + tensor_product(triplet.Id, triplet.Sx);
     }
 
+    Matrix9cd hamiltonian(void) const { 
+       return Hfull;
+    }
 
     void print_info(void) { 
       cout << "# D " << D << endl;
@@ -495,7 +497,193 @@ public :
 };
 
 
+/*
+ * Merrifield
+ *
+ * Computes steady state spin density matrix from the master equation 
+ * using eigen's matrix free iterative solvers.
+ * Matrix free solver code borrowed from  
+ * https://eigen.tuxfamily.org/dox/group__MatrixfreeSolverExample.html
+ *
+ * Input : spins, a reference on SpinSystem object
+ * SpinSystem should define 
+ * spins.matrix_size
+ * spins.singlet_projector()
+ * spins.hamiltonian()
+ *
+ * function PL_from_rate() uses spins.singlet_content 
+ *
+ */ 
+#include <Eigen/Core>
+#include <Eigen/IterativeLinearSolvers>
+#include <unsupported/Eigen/IterativeSolvers>
+
+template<typename SpinSystem> class Merrifield;
+
+namespace Eigen {
+namespace internal {
+  // make Merrifield look like Matrix<complexg, SpinSystem::matrix_size^2, SpinSystem::matrix_size^2> 
+  template<class SpinSystem>
+  //  struct traits< Merrifield<SpinSystem> > : public Eigen::internal::traits< Matrix<complexg, SpinSystem::matrix_size*SpinSystem::matrix_size, SpinSystem::matrix_size*SpinSystem::matrix_size> >
+  struct traits< Merrifield<SpinSystem> > : public Eigen::internal::traits<Eigen::SparseMatrix<complexg> >
+  {};
+
+}
+}
+
+template <class SpinSystem> class Merrifield :public Eigen::EigenBase< Merrifield<SpinSystem> >  { 
+    SpinSystem &spins;
+public:
+    double gammaS;
+    double gamma;
+    double gen;
+    
+
+    // Required typedefs, constants, and method:
+    typedef complexg Scalar;
+    typedef double RealScalar;
+    typedef int StorageIndex;
+    typedef Matrix<complexg, SpinSystem::matrix_size, SpinSystem::matrix_size> SpinMatrix;
+    typedef Matrix<complexg, SpinSystem::matrix_size*SpinSystem::matrix_size, 1> SpinMatrixVecForm;
+    SpinMatrix Ps;
+    SpinMatrix rho;
+
+    enum {
+       ColsAtCompileTime = Eigen::Dynamic,
+       MaxColsAtCompileTime = Eigen::Dynamic,
+       IsRowMajor = false
+    };
+  
+    Index rows() const { return SpinSystem::matrix_size * SpinSystem::matrix_size; }
+    Index cols() const { return SpinSystem::matrix_size * SpinSystem::matrix_size; }
+
+    template<typename Rhs>
+    Eigen::Product<Merrifield<SpinSystem>,Rhs,Eigen::AliasFreeProduct> 
+    operator*(const Eigen::MatrixBase<Rhs>& x) const {
+       return Eigen::Product<Merrifield<SpinSystem>,Rhs,Eigen::AliasFreeProduct>(*this, x.derived());
+    }
+
+
+    Merrifield(SpinSystem &spin_system) : spins(spin_system) {
+       Ps = spins.singlet_projector();
+    }
+
+    SpinMatrix Liouvillian(const SpinMatrix &rho) const { 
+      SpinMatrix L = -iii * ( spins.hamiltonian() * rho - rho * spins.hamiltonian() )
+	- gamma * rho
+	- gammaS * (Ps * rho + rho * Ps);
+      return L;
+    }
+
+
+    SpinMatrix map_to_mat(SpinMatrixVecForm vec) const { 
+        return Map< SpinMatrix >(vec.data());
+    }
+
+    SpinMatrixVecForm map_to_vec(SpinMatrix &mat) const { 
+        return Map< SpinMatrixVecForm > (mat.data());
+    }
+
+    SpinMatrixVecForm Ps_to_vec(void) { 
+        return map_to_vec(Ps);
+    }
+
+    void find_rho(void) { 
+        Eigen::BiCGSTAB< Merrifield<SpinSystem> , Eigen::IdentityPreconditioner> bicg;
+	bicg.compute(*this);
+	SpinMatrixVecForm x;
+	SpinMatrixVecForm y = -Ps_to_vec();
+	x = bicg.solve(y);    
+	//	std::cout << "BiCGSTAB: #iterations: " << bicg.iterations() << ", estimated error: " << bicg.error() << std::endl;
+	rho = map_to_mat(x);
+    }
+
+
+    double rho_error(void) { 
+        return (Liouvillian(rho) + Ps).norm();
+    }
+
+    double PL(void) { 
+	Matrix<complexg, 1, 1> sum;
+	for (int i = 0; i < SpinSystem::matrix_size; i++) {
+	   sum += Ps.row(i) * rho.col(i);
+	}
+	return real(sum(0));
+    }
+
+
+    double PL_from_rate(void) { 
+        double sum = 0.0;
+	for (int i = 0; i < SpinSystem::matrix_size; i++) {
+	   double alpha_n = spins.singlet_content(i);
+	   sum += alpha_n * alpha_n / (gamma + gammaS * alpha_n);
+	}
+	return sum;
+    }
+
+};
+
+
+namespace Eigen {
+namespace internal {
+  template<typename Rhs, class SpinSystem>
+  struct generic_product_impl<Merrifield<SpinSystem>, Rhs, SparseShape, DenseShape, GemvProduct> // GEMV stands for matrix-vector
+  : generic_product_impl_base<Merrifield<SpinSystem>,Rhs,generic_product_impl<Merrifield<SpinSystem>,Rhs> >
+  {
+    typedef typename Product<Merrifield<SpinSystem>,Rhs>::Scalar Scalar;
+    template<typename Dest>
+    static void scaleAndAddTo(Dest& dst, const Merrifield<SpinSystem>& lhs, const Rhs& rhs, const Scalar& alpha)
+    {
+      // This method should implement "dst += alpha * lhs * rhs" inplace,
+      // however, for iterative solvers, alpha is always equal to 1, so let's not bother about it.
+      assert(alpha==Scalar(1) && "scaling is not implemented");
+      typename Merrifield<SpinSystem>::SpinMatrix rho = lhs.map_to_mat(rhs);     
+      typename Merrifield<SpinSystem>::SpinMatrix L = lhs.Liouvillian(rho);
+      typename Merrifield<SpinSystem>::SpinMatrixVecForm lhs_x_rhs = lhs.map_to_vec(L);
+      dst += lhs_x_rhs;
+    }
+  };
+}
+}
+
+//
+// demonstration code for Merrifield class with both Liouville and rate equation versions
+//
 int main()
+{
+    TwoTriplets triplet_pair;
+    triplet_pair.D = 0.1;
+    triplet_pair.E = 0.0;
+    triplet_pair.J = 5.0;
+    triplet_pair.Jdip = 0.0;
+    triplet_pair.B = 5.0;
+    triplet_pair.print_info();
+    
+    Rotation triplet1_rot, triplet2_rot;
+    triplet1_rot.random();
+    triplet2_rot.random();
+    Vector3d rdip = random_unit_vector();
+
+
+    Merrifield<TwoTriplets> merrifield(triplet_pair);
+    merrifield.gammaS = 0.1;
+    merrifield.gamma = 0.15;
+    
+    for (double B = 0.0; B < 30; B += 0.01) { 
+       triplet_pair.B = B;
+       triplet_pair.load_field_basis_Hamiltonian(triplet1_rot, triplet2_rot, rdip);
+       triplet_pair.diag(); // needed for PL_from_rate()
+       merrifield.find_rho();
+       double PL = merrifield.PL();
+       cout << triplet_pair.B << "     " << PL << "    " << merrifield.PL_from_rate() << "     " << merrifield.rho_error() << endl;
+    }
+
+}
+
+//
+// demonstration code for MR/ODMR colormap as function of B and frequency 
+//
+int main_odmr()
 {
     TwoTriplets triplet_pair;
     triplet_pair.D = 1.0;
@@ -605,5 +793,5 @@ int main()
        }
 
        cout << endl;
-       //    }
+       return 0;
 }
