@@ -27,13 +27,9 @@ Vector3d random_unit_vector(void) {
    return u;
 }
 
-//typedef Matrix< complexg, 3, 3> Matrix3cf; 
-//typedef Matrix< double, 3, 1> Vector3d; 
 
 typedef Matrix<complexg, 9, 9> Matrix9cd; 
 typedef Matrix<double, 9, 1> Vector9d; 
-
-
 
 
 class Rotation {
@@ -174,156 +170,222 @@ public :
 };
 
 
+struct PauliTripletMatrices { 
+    typedef Matrix3cd SpinMatrix;
+    const SpinMatrix Sx;
+    const SpinMatrix Sy;
+    const SpinMatrix Sz;
+    const SpinMatrix Id;
+    enum { matrix_size = 3 };
+
+    PauliTripletMatrices(void) :
+      Sx ( (SpinMatrix() << 0.0, 1.0, 0.0, 1.0, 0.0, 1.0, 0.0, 1.0, 0.0).finished()/sqrt(2.0) ), 
+      Sy ( -iii * (SpinMatrix() << 0.0, 1.0, 0.0, -1.0, 0.0, 1.0, 0.0, -1.0, 0.0).finished()/sqrt(2.0) ),
+      Sz ( (SpinMatrix() << 1.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, -1.0).finished() ),
+      Id ( SpinMatrix() = SpinMatrix::Identity() )
+    {
+    }
+};
 
 
+struct PauliMatrices { 
+    typedef Matrix2cd SpinMatrix;
+    const SpinMatrix Sx;
+    const SpinMatrix Sy;
+    const SpinMatrix Sz;
+    const SpinMatrix Id;
+    enum { matrix_size = 2 };
+
+    PauliMatrices(void) :
+      Sx ( (SpinMatrix() << 0.0, 1.0, 1.0, 0.0).finished() ), 
+      Sy ( (SpinMatrix() << 0.0, -iii, iii, 0.0).finished() ),
+      Sz ( (SpinMatrix() << 1.0, 0.0, 0.0, -1.0).finished() ),
+      Id ( SpinMatrix() = SpinMatrix::Identity() )
+    {
+    }
+};
 
 
-class TripletHamiltonian { 
+template <class Pauli> class GenericSpin : public Pauli { 
+public :
+    typedef typename Pauli::SpinMatrix SpinMatrix;
+private :
+    SpinMatrix Hfull;
 public:
-    Matrix3cd Sx;
-    Matrix3cd Sy;
-    Matrix3cd Sz;
-    Matrix3cd Id;
+    enum { matrix_size = Pauli::matrix_size };
+    double D;
+    double E;
+    Rotation rot;
+    Vector3d g3;
 
-    TripletHamiltonian(void) { 
-       Id << 1.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 1.0;
-       Sz << 1.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, -1.0;
-       Sx << 0.0, 1.0, 0.0, 1.0, 0.0, 1.0, 0.0, 1.0, 0.0;
-       Sx /= sqrt(2.0);
-       Sy << 0.0, 1.0, 0.0, -1.0, 0.0, 1.0, 0.0, -1.0, 0.0;
-       Sy *= -iii / sqrt(2.0);
+    GenericSpin(void) :
+      D(0),
+      E(0),
+      rot ( Matrix3d() = Matrix3d::Identity() ),
+      g3 ( Vector3d() = Vector3d::Constant(1.0) )
+    { 
     }
 
-    Matrix3cd zeeman(double Bx, double By, double Bz) { 
-       return Bx * Sx + By * Sy + Bz * Sz;
-    }
-
-    Matrix3cd fine_structure(double D, double E,  Rotation rot) { 
+    SpinMatrix hamiltonian(Vector3d Bvec) { 
        Matrix3d r_matrix = rot.matrix();
-       Matrix3cd rSx = r_matrix(0, 0) * Sx + r_matrix(0, 1) * Sy + r_matrix(0, 2) * Sz;
-       Matrix3cd rSy = r_matrix(1, 0) * Sx + r_matrix(1, 1) * Sy + r_matrix(1, 2) * Sz;
-       Matrix3cd rSz = r_matrix(2, 0) * Sx + r_matrix(2, 1) * Sy + r_matrix(2, 2) * Sz;
-       return D * (rSz * rSz - 2.0*Id/3.0) + E * (rSy * rSy -  rSx * rSx);
+       SpinMatrix rSx = r_matrix(0, 0) * Pauli::Sx + r_matrix(0, 1) * Pauli::Sy + r_matrix(0, 2) * Pauli::Sz;
+       SpinMatrix rSy = r_matrix(1, 0) * Pauli::Sx + r_matrix(1, 1) * Pauli::Sy + r_matrix(1, 2) * Pauli::Sz;
+       SpinMatrix rSz = r_matrix(2, 0) * Pauli::Sx + r_matrix(2, 1) * Pauli::Sy + r_matrix(2, 2) * Pauli::Sz;
+       Vector3d rBvec = r_matrix * Bvec;
+       Hfull = D * (rSz * rSz - 2.0*Pauli::Id/3.0) + E * (rSy * rSy -  rSx * rSx) 
+	   + g3[0] * rSx * rBvec[0] + g3[1] * rSy * rBvec[1] + g3[2] * rSz * rBvec[2];
+       return Hfull;
     }
 
-    Matrix3cd fine_structure(double D, double E) { 
-       return D * (Sz * Sz - 2.0*Id/3.0) + E * (Sy * Sy -  Sx * Sx);
+    SpinMatrix hamiltonian(void) const { 
+       return Hfull;
     }
 
-    Matrix3cd spin_hamiltonian_mol_basis(double D, double E, double B, double theta, double phi) { 
+  /****
+   * Older functions
+   */
+    SpinMatrix zeeman(double Bx, double By, double Bz) { 
+       return Bx * Pauli::Sx + By * Pauli::Sy + Bz * Pauli::Sz;
+    }
+
+    SpinMatrix fine_structure(double D, double E,  Rotation rot) { 
+       Matrix3d r_matrix = rot.matrix();
+       SpinMatrix rSx = r_matrix(0, 0) * Pauli::Sx + r_matrix(0, 1) * Pauli::Sy + r_matrix(0, 2) * Pauli::Sz;
+       SpinMatrix rSy = r_matrix(1, 0) * Pauli::Sx + r_matrix(1, 1) * Pauli::Sy + r_matrix(1, 2) * Pauli::Sz;
+       SpinMatrix rSz = r_matrix(2, 0) * Pauli::Sx + r_matrix(2, 1) * Pauli::Sy + r_matrix(2, 2) * Pauli::Sz;
+       return D * (rSz * rSz - 2.0*Pauli::Id/3.0) + E * (rSy * rSy -  rSx * rSx);
+    }
+
+    SpinMatrix fine_structure(double D, double E) { 
+      return D * (Pauli::Sz * Pauli::Sz - 2.0*Pauli::Id/3.0) + E * (Pauli::Sy * Pauli::Sy -  Pauli::Sx * Pauli::Sx);
+    }
+
+    SpinMatrix spin_hamiltonian_mol_basis(double D, double E, double B, double theta, double phi) { 
        double Bx = B * sin(theta) * cos(phi);
        double By = B * sin(theta) * sin(phi);
        double Bz = B * cos(theta);
-       return fine_structure(D, E) + Sx * Bx + Sy * By + Sz * Bz;
+       return fine_structure(D, E) + Pauli::Sx * Bx + Pauli::Sy * By + Pauli::Sz * Bz;
     }
 
-    Matrix3cd spin_hamiltonian_field_basis(double D, double E, double B, double theta, double phi) { 
-       return fine_structure(D, E, Rotation(0, -theta, -phi + M_PI/2.0)) + Sz * B;
+    SpinMatrix spin_hamiltonian_field_basis(double D, double E, double B, double theta, double phi) { 
+       return fine_structure(D, E, Rotation(0, -theta, -phi + M_PI/2.0)) + Pauli::Sz * B;
+    }
+
+
+};
+
+
+typedef GenericSpin<PauliTripletMatrices> TripletSpin;
+typedef GenericSpin<PauliMatrices> DoubletSpin;
+
+template <class Spin1, class Spin2> class SpinPair { 
+public: 
+    Spin1 S1;
+    Spin2 S2;
+    typedef Matrix<complexg, Spin1::matrix_size * Spin2::matrix_size, Spin1::matrix_size * Spin2::matrix_size> SpinMatrix;
+    typedef Matrix<complexg, Spin1::matrix_size * Spin2::matrix_size, 1> SpinVector;
+    typedef Matrix<double, Spin1::matrix_size * Spin2::matrix_size, 1> SpinVectorReal;
+private : 
+    SpinMatrix Hfull; // Hamiltonian 
+
+    SpinMatrix exchange_matrix(void) { 
+       return kroneckerProduct(S1.Sx, S2.Sx).eval() + kroneckerProduct(S1.Sy, S2.Sy).eval() + kroneckerProduct(S1.Sz, S2.Sz).eval();
+    }
+
+    SpinMatrix dipole_dipole_matrix(Vector3d uvec) {       
+       double unorm = uvec.norm();
+       if (abs(unorm) > 1e-15) { 
+	  uvec /= unorm;
+	  typename Spin1::SpinMatrix uS1 = uvec(0) * S1.Sx + uvec(1) * S1.Sy + uvec(2) * S1.Sz;       
+	  typename Spin2::SpinMatrix uS2 = uvec(0) * S2.Sx + uvec(1) * S2.Sy + uvec(2) * S2.Sz;       
+	  return (exchange_matrix() - 3.0 * kroneckerProduct(uS1, uS2).eval());
+       } else {
+	  return SpinMatrix() = SpinMatrix::Zero();
+       }
+    }
+
+public : 
+    enum { matrix_size = Spin1::matrix_size * Spin2::matrix_size };
+    double J;
+    double Jdip;
+    Vector3d r12;
+
+    SpinVectorReal eval;   // eigenvalues
+    SpinMatrix evec; // eigenvectors
+
+    SpinPair(void) : S1(), 
+		     S2() 
+    { 
+    }
+
+    SpinMatrix hamiltonian(Vector3d Bvec) { 
+       Hfull = kroneckerProduct( S1.hamiltonian(Bvec), S2.Id ).eval() + kroneckerProduct( S1.Id, S2.hamiltonian(Bvec) ).eval() 
+	 + J * exchange_matrix() + Jdip * dipole_dipole_matrix(r12);
+       return Hfull;
+    }
+
+    SpinMatrix hamiltonian(void) const { 
+       return Hfull;
+    }
+
+
+    void diag(void) { 
+       SelfAdjointEigenSolver<SpinMatrix> eigensolver(Hfull);
+       if (eigensolver.info() != Success) abort();
+       eval = eigensolver.eigenvalues();
+       evec = eigensolver.eigenvectors();
+    }
+ 
+    double sz_elem(int i) { 
+       SpinMatrix Sz2 = kroneckerProduct(S1.Sz, S2.Id).eval() + kroneckerProduct(S1.Id, S2.Sz).eval();
+       Matrix<complexg, matrix_size, 1> vi = evec.col(i);
+       Matrix<complexg, 1, 1> Sz2ii = vi.adjoint() * Sz2 * vi;
+       return real(Sz2ii(0));
+    }
+
+
+    void load_field_basis_Hamiltonian(const Rotation &t1_rot, const Rotation &t2_rot, const Vector3d &rdip, const Vector3d &Bvec) { 
+       S1.rot = t1_rot;
+       S2.rot = t2_rot;
+       r12 = rdip;
+       hamiltonian(Bvec);
+    }
+
+    SpinMatrix Bac_field_basis_matrix(void) { 
+       return kroneckerProduct(S1.Sx, S2.Id).eval() + kroneckerProduct(S1.Id, S2.Sx).eval();
+    }
+
+    void print_info(void) { 
+      cout << "# J " << J << endl;
+      cout << "# Jdip " << Jdip << endl;
+      cout << "# r12 " << r12 << endl;
     }
 };
 
 
 
-class TwoTriplets { 
-    TripletHamiltonian triplet;
-    Matrix9cd Hfull; // Hamiltonian 
-    Matrix9cd Jproj;
-    Matrix9cd tensor_product(const Matrix3cd &A, const Matrix3cd &B) { 
-       return kroneckerProduct(A, B).eval();
-    }
-
-    Matrix9cd exchange_matrix(void) { 
-       return kroneckerProduct(triplet.Sx, triplet.Sx).eval() + kroneckerProduct(triplet.Sy, triplet.Sy).eval() + kroneckerProduct(triplet.Sz, triplet.Sz).eval();
-    }
-
-    Matrix9cd dipole_dipole_matrix(Vector3d uvec) {       
-       double unorm = uvec.norm();
-       if (abs(unorm) > 1e-15) { 
-	  uvec /= unorm;
-	  Matrix3cd uS = uvec(0) * triplet.Sx + uvec(1) * triplet.Sy + uvec(2) * triplet.Sz;       
-	  return (exchange_matrix() - 3.0 * tensor_product(uS, uS));
-       } else {
-	  return Matrix9cd::Zero();
-       }
-    }
-
+class TripletPair : public SpinPair<TripletSpin, TripletSpin> {
+private: 
+    const double s2i3(void) const { return sqrt(2.0/3.0); }
+    const double si2(void) const { return 1.0/sqrt(2.0); }
+    const double si3(void) const { return 1.0/sqrt(3.0); } 
+    const double si6(void) const { return 1.0/sqrt(6.0); }
 public : 
-    enum { matrix_size = 9 };
-    double D;
-    double E;
-    double J;
-    double Jdip;
-    double B;
-    Vector9d eval;   // eigenvalues
-    Matrix9cd evec;  // eigenvectors
+    const SpinMatrix Jproj;
 
-    TwoTriplets(void) : triplet() { 
-
-       //       Matrix9cd J2;
-       //       load_exchange_matrix(J2);
-       //       SealfAdjointEigenSolver<Matrix9cd> eigensolver(J2);
-       //       if (eigensolver.info() != Success) abort();
-       //       Jproj = eigensolver.eigenvectors().transpose();
-
-       double s2i3 = sqrt(2.0/3.0);
-       double si2 = 1.0/sqrt(2.0);
-       double si3 = 1.0/sqrt(3.0);
-       double si6 = 1.0/sqrt(6.0);
-       Jproj << 0, 0, si3, 0, -si3, 0, si3, 0, 0,
-	 0, 0, 0, 0, 0, -si2, 0, si2, 0,
-	 0, 0, -si2, 0, 0, 0, si2, 0, 0,
-	 0, -si2, 0, si2, 0, 0, 0, 0, 0,
-	 0,    0, 0,   0, 0, 0, 0, 0, 1.0, 
-	 0, 0, 0, 0, 0, si2, 0, si2, 0,
-	 0, 0, si6, 0, s2i3, 0, si6, 0, 0,
-	 0, si2, 0, si2, 0, 0, 0, 0, 0,
-	 1.0, 0, 0, 0, 0, 0, 0, 0, 0;
-
-
+    TripletPair(void) : 
+      Jproj( (SpinMatrix() << 0, 0, si3(), 0, -si3(), 0, si3(), 0, 0,
+	      0, 0, 0, 0, 0, -si2(), 0, si2(), 0,
+	      0, 0, -si2(), 0, 0, 0, si2(), 0, 0,
+	      0, -si2(), 0, si2(), 0, 0, 0, 0, 0,
+	      0,    0, 0,   0, 0, 0, 0, 0, 1.0, 
+	      0, 0, 0, 0, 0, si2(), 0, si2(), 0,
+	      0, 0, si6(), 0, s2i3(), 0, si6(), 0, 0,
+	      0, si2(), 0, si2(), 0, 0, 0, 0, 0,
+	      1.0, 0, 0, 0, 0, 0, 0, 0, 0 ).finished() ) 
+    {
     }
 
-
-    void load_field_basis_Hamiltonian( Rotation &triplet1_rotation,  Rotation &triplet2_rotation) {
-       Matrix3cd H1 = triplet.fine_structure(D, E, triplet1_rotation) + B * triplet.Sz; 
-
-       Matrix3cd H2 = triplet.fine_structure(D, E, triplet2_rotation) + B * triplet.Sz; 
-
-       Hfull = tensor_product(H1, triplet.Id) + tensor_product(triplet.Id, H2) + J * exchange_matrix();
-    }
-
-    void load_field_basis_Hamiltonian( Rotation &triplet1_rotation,  Rotation &triplet2_rotation, Vector3d rdip) {
-       load_field_basis_Hamiltonian(triplet1_rotation, triplet2_rotation);
-       Hfull += Jdip * dipole_dipole_matrix(rdip);
-    }
-    
-
-    void load_mol1_basis_Hamiltonian(double theta, double phi,  Rotation &triplet2_rotation) {
-       double Bx = B * sin(theta) * cos(phi);
-       double By = B * sin(theta) * sin(phi);
-       double Bz = B * cos(theta);
-
-       Matrix3cd Hz = triplet.zeeman(Bx, By, Bz);
-       Matrix3cd H1 = triplet.fine_structure(D, E) + Hz;
-       Matrix3cd H2 = triplet.fine_structure(D, E, triplet2_rotation) + Hz; 
-
-       Hfull = tensor_product(H1, triplet.Id) + tensor_product(triplet.Id, H2) + J * exchange_matrix();
-    }
-    
-
-    void diag(void) { 
-       SelfAdjointEigenSolver<Matrix9cd> eigensolver(Hfull);
-       if (eigensolver.info() != Success) abort();
-       eval = eigensolver.eigenvalues();
-       evec = eigensolver.eigenvectors();
-    }
-
- 
-    double sz_elem(int i) { 
-       Matrix9cd Sz2 = kroneckerProduct(triplet.Sz, triplet.Id).eval() + kroneckerProduct(triplet.Id, triplet.Sz).eval();
-       Matrix<complexg, 9, 1> vi = evec.col(i);
-       Matrix<complexg, 1, 1> Sz2ii = vi.adjoint() * Sz2 * vi;
-       return real(Sz2ii(0));
-    }
 
     double quintet_content(int i) {
        Matrix<complexg, 5, 1> iProj = Jproj.block(4, 0, 5, 9) * evec.block(0, i, 9, 1);
@@ -343,28 +405,11 @@ public :
        return real(norm2(0));
     }
 
-    Matrix9cd singlet_projector(void) { 
+    const SpinMatrix singlet_projector(void) const { 
        return Jproj.row(0).adjoint() * Jproj.row(0);
     }
 
-    Matrix9cd Bac_field_basis_matrix(void) { 
-       return tensor_product(triplet.Sx, triplet.Id) + tensor_product(triplet.Id, triplet.Sx);
-    }
-
-    Matrix9cd hamiltonian(void) const { 
-       return Hfull;
-    }
-
-    void print_info(void) { 
-      cout << "# D " << D << endl;
-      cout << "# E " << E << endl;
-      cout << "# B " << B << endl;
-      cout << "# J " << J << endl;
-      cout << "# Jdip " << Jdip << endl;
-    }
-
 };
-
 
 /*
  * ODMR_Signal
@@ -651,33 +696,30 @@ namespace internal {
 //
 int main()
 {
-    TwoTriplets triplet_pair;
-    triplet_pair.D = 0.1;
-    triplet_pair.E = 0.0;
+    TripletPair triplet_pair;
+    triplet_pair.S1.D = triplet_pair.S2.D = 0.1;
+    triplet_pair.S1.E = triplet_pair.S2.E = 0.0;
+
+    triplet_pair.S1.g3 << 1.0, 1.0, 1.0; // g factors in molecular frame 
+    triplet_pair.S1.rot.random();
+    triplet_pair.S2.rot.random();
+    triplet_pair.r12 = random_unit_vector();
     triplet_pair.J = 5.0;
     triplet_pair.Jdip = 0.0;
-    triplet_pair.B = 5.0;
-    triplet_pair.print_info();
-    
-    Rotation triplet1_rot, triplet2_rot;
-    triplet1_rot.random();
-    triplet2_rot.random();
-    Vector3d rdip = random_unit_vector();
 
-
-    Merrifield<TwoTriplets> merrifield(triplet_pair);
+    Merrifield<TripletPair> merrifield(triplet_pair);
     merrifield.gammaS = 0.1;
     merrifield.gamma = 0.15;
     
     for (double B = 0.0; B < 30; B += 0.01) { 
-       triplet_pair.B = B;
-       triplet_pair.load_field_basis_Hamiltonian(triplet1_rot, triplet2_rot, rdip);
+       Vector3d Bvec;
+       Bvec << 0, 0, B;
+       triplet_pair.hamiltonian(Bvec);
        triplet_pair.diag(); // needed for PL_from_rate()
        merrifield.find_rho();
        double PL = merrifield.PL();
-       cout << triplet_pair.B << "     " << PL << "    " << merrifield.PL_from_rate() << "     " << merrifield.rho_error() << endl;
+       cout << B << "     " << PL << "    " << merrifield.PL_from_rate() << "     " << merrifield.rho_error() << endl;
     }
-
 }
 
 //
@@ -685,21 +727,22 @@ int main()
 //
 int main_odmr()
 {
-    TwoTriplets triplet_pair;
-    triplet_pair.D = 1.0;
-    triplet_pair.E = 0.15;
+    TripletPair triplet_pair;
+    Vector3d Bvec;
+
+    triplet_pair.S1.D = triplet_pair.S2.D = 1.0;
+    triplet_pair.S1.E = triplet_pair.S2.E = 0.15;
     triplet_pair.J = 0.0;
     triplet_pair.Jdip = 0.03;
-    triplet_pair.B = 5.0;
     triplet_pair.print_info();
-
+    double Bz = 5.0;
     srand(1);
 
     double quintet_max = 0.0;
 
     Rotation quintet_t1_rot;
     Rotation quintet_t2_rot;
-    Vector3d quintet_rdip = random_unit_vector();
+    Vector3d quintet_rdip;
 
     int Nsamples = 5000;
     std::vector<double> slist(Nsamples);
@@ -707,10 +750,11 @@ int main_odmr()
     double theta = 1.1;
     for (int count = 0; count < Nsamples; count++) { 
        Rotation triplet1_rot, triplet2_rot;
-       triplet1_rot = (Rotation::Y(0) * Rotation::X(theta)).eval();
-       triplet2_rot.random();
-       Vector3d rdip  = random_unit_vector();
-       triplet_pair.load_field_basis_Hamiltonian(triplet1_rot, triplet2_rot, rdip);
+       triplet_pair.S1.rot = (Rotation::Y(0) * Rotation::X(theta)).eval();
+       triplet_pair.S2.rot.random();
+       triplet_pair.r12 = random_unit_vector();
+       Bvec << 0, 0, Bz;
+       triplet_pair.hamiltonian(Bvec);
        triplet_pair.diag(); 
        double si = 0.0;
        for (int i = 0; i < triplet_pair.matrix_size ; i++) { 
@@ -719,9 +763,9 @@ int main_odmr()
        }
        if (si > quintet_max) { 
 	  quintet_max = si;
-	  quintet_t1_rot = triplet1_rot;
-	  quintet_t2_rot = triplet2_rot;
-	  quintet_rdip = rdip;
+	  quintet_t1_rot = triplet_pair.S1.rot;
+	  quintet_t2_rot = triplet_pair.S2.rot;
+	  quintet_rdip = triplet_pair.r12;
        }
        slist[count] = si;
     }
@@ -739,9 +783,10 @@ int main_odmr()
     for (int i = 0; i < 3; i++) cout << quintet_rdip[i] << "   ";
     cout << endl;
 
-    triplet_pair.load_field_basis_Hamiltonian(quintet_t1_rot, quintet_t2_rot, quintet_rdip);
+    Bvec << 0, 0, Bz;
+    triplet_pair.load_field_basis_Hamiltonian(quintet_t1_rot, quintet_t2_rot, quintet_rdip, Bvec );
     triplet_pair.diag();
-    cout << "# qunitet/triplet projections at B = " << triplet_pair.B << endl;
+    cout << "# qunitet/triplet projections at B = " << Bz << endl;
     for (int i = 0; i < triplet_pair.matrix_size ; i++) 
       cout << "# " << triplet_pair.quintet_content(i) << "    " << triplet_pair.triplet_content(i) << "    " << triplet_pair.singlet_content(i) << "    " << triplet_pair.sz_elem(i) << endl;
 
@@ -751,7 +796,7 @@ int main_odmr()
     cout << "# angles to field " << endl;
     cout << "# " << theta << "   " << "    " << quintet_max << "   "  << cos1z << "    " << cos2z << "    " << endl;
 
-    ODMR_Signal<TwoTriplets> odmr_from_triplets(triplet_pair);    
+    ODMR_Signal<TripletPair> odmr_from_triplets(triplet_pair);    
 
     const int N_averages = 10000;
     double omega_span = 10.0;     
@@ -769,8 +814,8 @@ int main_odmr()
 	  Rotation r1_sample = (rot1.matrix() * quintet_t1_rot.matrix()).eval();
 	  Rotation r2_sample = (rot1.matrix() * quintet_t2_rot.matrix()).eval();
 	  Vector3d rdip_sample = rot1.matrix() * random_unit_vector(); // rot1.matrix() * quintet_rdip;
-	  triplet_pair.B = B;
-	  triplet_pair.load_field_basis_Hamiltonian(r1_sample, r2_sample, rdip_sample);
+	  Bvec << 0, 0, B;
+	  triplet_pair.load_field_basis_Hamiltonian(r1_sample, r2_sample, rdip_sample, Bvec);
 	  triplet_pair.diag();
 
 	  odmr_from_triplets.update_from_spin_hamiltonian();
