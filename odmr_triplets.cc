@@ -3,6 +3,7 @@
 #include <unsupported/Eigen/KroneckerProduct>
 #include <Eigen/Geometry>
 #include <vector>
+#include <boost/scoped_ptr.hpp>
 
 using namespace Eigen;
 using namespace std;
@@ -172,66 +173,74 @@ public :
 
 struct PauliTripletMatrices { 
     typedef Matrix3cd SpinMatrix;
-    const SpinMatrix Sx;
-    const SpinMatrix Sy;
-    const SpinMatrix Sz;
-    const SpinMatrix Id;
+    static const SpinMatrix Sx;
+    static const SpinMatrix Sy;
+    static const SpinMatrix Sz;
+    static const SpinMatrix Id;
     enum { matrix_size = 3 };
-
-    PauliTripletMatrices(void) :
-      Sx ( (SpinMatrix() << 0.0, 1.0, 0.0, 1.0, 0.0, 1.0, 0.0, 1.0, 0.0).finished()/sqrt(2.0) ), 
-      Sy ( -iii * (SpinMatrix() << 0.0, 1.0, 0.0, -1.0, 0.0, 1.0, 0.0, -1.0, 0.0).finished()/sqrt(2.0) ),
-      Sz ( (SpinMatrix() << 1.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, -1.0).finished() ),
-      Id ( SpinMatrix() = SpinMatrix::Identity() )
-    {
-    }
 };
+const PauliTripletMatrices::SpinMatrix PauliTripletMatrices::Sx ( (SpinMatrix() << 0.0, 1.0, 0.0, 1.0, 0.0, 1.0, 0.0, 1.0, 0.0).finished()/sqrt(2.0) );
+const PauliTripletMatrices::SpinMatrix PauliTripletMatrices::Sy ( -iii * (SpinMatrix() << 0.0, 1.0, 0.0, -1.0, 0.0, 1.0, 0.0, -1.0, 0.0).finished()/sqrt(2.0) );
+const PauliTripletMatrices::SpinMatrix PauliTripletMatrices::Sz ( ( (SpinMatrix() << 1.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, -1.0).finished() ) );
+const PauliTripletMatrices::SpinMatrix PauliTripletMatrices::Id (  (SpinMatrix() = SpinMatrix::Identity()) );
 
 
 struct PauliMatrices { 
     typedef Matrix2cd SpinMatrix;
-    const SpinMatrix Sx;
-    const SpinMatrix Sy;
-    const SpinMatrix Sz;
-    const SpinMatrix Id;
+    static const SpinMatrix Sx;
+    static const SpinMatrix Sy;
+    static const SpinMatrix Sz;
+    static const SpinMatrix Id;
     enum { matrix_size = 2 };
+};
+const PauliMatrices::SpinMatrix PauliMatrices::Sx (  (SpinMatrix() << 0.0, 1.0, 1.0, 0.0).finished() );
+const PauliMatrices::SpinMatrix PauliMatrices::Sy (  (SpinMatrix() << 0.0, -iii, iii, 0.0).finished() );
+const PauliMatrices::SpinMatrix PauliMatrices::Sz ( (SpinMatrix() << 1.0, 0.0, 0.0, -1.0).finished() );
+const PauliMatrices::SpinMatrix PauliMatrices::Id (  (SpinMatrix() = SpinMatrix::Identity()) );
 
-    PauliMatrices(void) :
-      Sx ( (SpinMatrix() << 0.0, 1.0, 1.0, 0.0).finished() ), 
-      Sy ( (SpinMatrix() << 0.0, -iii, iii, 0.0).finished() ),
-      Sz ( (SpinMatrix() << 1.0, 0.0, 0.0, -1.0).finished() ),
-      Id ( SpinMatrix() = SpinMatrix::Identity() )
-    {
+
+
+typedef complexg *TransferSpinMatrix;
+
+struct GenericSpinBase {
+    double D; // D 
+    double E; // E
+    Rotation rot; // rotation from laboratory frame to molecular frame 
+    Vector3d g3; // g factors in molecular frame 
+    Vector3d B;  // magnetic field in laboratory frame 
+
+    GenericSpinBase(void) :
+      D(0),
+      E(0),
+      rot ( Matrix3d() = Matrix3d::Identity() ),
+      g3 ( Vector3d() = Vector3d::Constant(1.0) ),
+      B (  Vector3d() = Vector3d::Constant(0.0) )
+    { 
     }
+
+    virtual TransferSpinMatrix hamiltonian_gen(void) = 0;
+    virtual const TransferSpinMatrix Sx_gen(void) const = 0;
+    virtual const TransferSpinMatrix Sy_gen(void) const = 0;
+    virtual const TransferSpinMatrix Sz_gen(void) const = 0;
+    virtual const TransferSpinMatrix Id_gen(void) const = 0;
 };
 
 
-template <class Pauli> class GenericSpin : public Pauli { 
+template <class Pauli> class GenericSpin : public Pauli, public GenericSpinBase { 
 public :
     typedef typename Pauli::SpinMatrix SpinMatrix;
 private :
     SpinMatrix Hfull;
 public:
     enum { matrix_size = Pauli::matrix_size };
-    double D;
-    double E;
-    Rotation rot;
-    Vector3d g3;
 
-    GenericSpin(void) :
-      D(0),
-      E(0),
-      rot ( Matrix3d() = Matrix3d::Identity() ),
-      g3 ( Vector3d() = Vector3d::Constant(1.0) )
-    { 
-    }
 
-    SpinMatrix hamiltonian(Vector3d Bvec) { 
+    SpinMatrix update_hamiltonian(void) { 
        Matrix3d r_matrix = rot.matrix();
        SpinMatrix rSx = r_matrix(0, 0) * Pauli::Sx + r_matrix(0, 1) * Pauli::Sy + r_matrix(0, 2) * Pauli::Sz;
        SpinMatrix rSy = r_matrix(1, 0) * Pauli::Sx + r_matrix(1, 1) * Pauli::Sy + r_matrix(1, 2) * Pauli::Sz;
        SpinMatrix rSz = r_matrix(2, 0) * Pauli::Sx + r_matrix(2, 1) * Pauli::Sy + r_matrix(2, 2) * Pauli::Sz;
-       Vector3d rBvec = r_matrix * Bvec;
+       Vector3d rBvec = r_matrix * B;
        Hfull = D * (rSz * rSz - 2.0*Pauli::Id/3.0) + E * (rSy * rSy -  rSx * rSx) 
 	   + g3[0] * rSx * rBvec[0] + g3[1] * rSy * rBvec[1] + g3[2] * rSz * rBvec[2];
        return Hfull;
@@ -241,42 +250,20 @@ public:
        return Hfull;
     }
 
-  /****
-   * Older functions
-   */
-    SpinMatrix zeeman(double Bx, double By, double Bz) { 
-       return Bx * Pauli::Sx + By * Pauli::Sy + Bz * Pauli::Sz;
+    TransferSpinMatrix hamiltonian_gen(void) { 
+       update_hamiltonian();
+       return Hfull.data();
     }
 
-    SpinMatrix fine_structure(double D, double E,  Rotation rot) { 
-       Matrix3d r_matrix = rot.matrix();
-       SpinMatrix rSx = r_matrix(0, 0) * Pauli::Sx + r_matrix(0, 1) * Pauli::Sy + r_matrix(0, 2) * Pauli::Sz;
-       SpinMatrix rSy = r_matrix(1, 0) * Pauli::Sx + r_matrix(1, 1) * Pauli::Sy + r_matrix(1, 2) * Pauli::Sz;
-       SpinMatrix rSz = r_matrix(2, 0) * Pauli::Sx + r_matrix(2, 1) * Pauli::Sy + r_matrix(2, 2) * Pauli::Sz;
-       return D * (rSz * rSz - 2.0*Pauli::Id/3.0) + E * (rSy * rSy -  rSx * rSx);
-    }
-
-    SpinMatrix fine_structure(double D, double E) { 
-      return D * (Pauli::Sz * Pauli::Sz - 2.0*Pauli::Id/3.0) + E * (Pauli::Sy * Pauli::Sy -  Pauli::Sx * Pauli::Sx);
-    }
-
-    SpinMatrix spin_hamiltonian_mol_basis(double D, double E, double B, double theta, double phi) { 
-       double Bx = B * sin(theta) * cos(phi);
-       double By = B * sin(theta) * sin(phi);
-       double Bz = B * cos(theta);
-       return fine_structure(D, E) + Pauli::Sx * Bx + Pauli::Sy * By + Pauli::Sz * Bz;
-    }
-
-    SpinMatrix spin_hamiltonian_field_basis(double D, double E, double B, double theta, double phi) { 
-       return fine_structure(D, E, Rotation(0, -theta, -phi + M_PI/2.0)) + Pauli::Sz * B;
-    }
-
-
+    const TransferSpinMatrix Sx_gen(void) const { return (TransferSpinMatrix) Pauli::Sx.data(); }
+    const TransferSpinMatrix Sy_gen(void) const { return (TransferSpinMatrix) Pauli::Sy.data(); }
+    const TransferSpinMatrix Sz_gen(void) const { return (TransferSpinMatrix) Pauli::Sz.data(); }
+    const TransferSpinMatrix Id_gen(void) const { return (TransferSpinMatrix) Pauli::Id.data(); }
 };
 
 
 typedef GenericSpin<PauliTripletMatrices> TripletSpin;
-typedef GenericSpin<PauliMatrices> DoubletSpin;
+typedef GenericSpin<PauliMatrices> SpinHalf;
 
 template <class Spin1, class Spin2> class SpinPair { 
 public: 
@@ -318,8 +305,8 @@ public :
     { 
     }
 
-    SpinMatrix hamiltonian(Vector3d Bvec) { 
-       Hfull = kroneckerProduct( S1.hamiltonian(Bvec), S2.Id ).eval() + kroneckerProduct( S1.Id, S2.hamiltonian(Bvec) ).eval() 
+    SpinMatrix update_hamiltonian(void) { 
+       Hfull = kroneckerProduct( S1.update_hamiltonian(), S2.Id ).eval() + kroneckerProduct( S1.Id, S2.update_hamiltonian() ).eval() 
 	 + J * exchange_matrix() + Jdip * dipole_dipole_matrix(r12);
        return Hfull;
     }
@@ -327,7 +314,6 @@ public :
     SpinMatrix hamiltonian(void) const { 
        return Hfull;
     }
-
 
     void diag(void) { 
        SelfAdjointEigenSolver<SpinMatrix> eigensolver(Hfull);
@@ -348,19 +334,172 @@ public :
        S1.rot = t1_rot;
        S2.rot = t2_rot;
        r12 = rdip;
-       hamiltonian(Bvec);
+       update_hamiltonian();
     }
 
     SpinMatrix Bac_field_basis_matrix(void) { 
        return kroneckerProduct(S1.Sx, S2.Id).eval() + kroneckerProduct(S1.Id, S2.Sx).eval();
     }
 
-    void print_info(void) { 
-      cout << "# J " << J << endl;
-      cout << "# Jdip " << Jdip << endl;
-      cout << "# r12 " << r12 << endl;
-    }
 };
+
+
+
+typedef std::unique_ptr<GenericSpinBase> SpinBasePtr;
+namespace SpinTupleAux { 
+  template <typename T> constexpr int find_matrix_size(void) { return T::matrix_size; }
+
+  template<typename T, typename... Tp> 
+  constexpr inline typename std::enable_if< sizeof...(Tp) >= 1, int>::type find_matrix_size(void) { 
+    return T::matrix_size * find_matrix_size<Tp...>();
+  }
+
+  template <typename T> void fill_S(std::vector< SpinBasePtr > &S) { S.push_back(SpinBasePtr(new T)); }
+
+  template<typename T, typename... Tp> 
+  constexpr inline typename std::enable_if< sizeof...(Tp) >= 1, void>::type fill_S(std::vector< SpinBasePtr > &S) { 
+    S.push_back(SpinBasePtr(new T));
+    fill_S<Tp...>(S);
+  }
+
+  template<int I, int J, typename T, typename... Tp> 
+  constexpr inline typename std::enable_if< I == J , int>::type find_item_matrix_size(void) { 
+    return T::matrix_size;
+  }
+
+  template<int I, int J, typename T, typename... Tp> 
+  constexpr inline typename std::enable_if< J < I, int>::type find_item_matrix_size(void) { 
+    return find_item_matrix_size<I, J+1, Tp...>();
+  }
+
+  template <int I, typename... Tp>  constexpr inline int find_item_matrix_size(void) { 
+    return find_item_matrix_size<I,0,Tp...>();
+  }
+
+  template<int I, int J, typename T, typename... Tp> 
+  constexpr inline typename std::enable_if< I == J , int>::type find_left_matrix_size(void) { 
+    return 1;
+  }
+
+  template<int I, int J, typename T, typename... Tp> 
+  constexpr inline typename std::enable_if< J < I, int>::type find_left_matrix_size(void) { 
+    return T::matrix_size * find_left_matrix_size<I, J+1, Tp...>();
+  }
+
+  template <int I, typename... Tp>  constexpr inline int find_left_matrix_size(void) { 
+    return find_left_matrix_size<I,0,Tp...>();
+  }
+}
+
+
+template <typename... Tp> struct SpinTuple { 
+    enum { matrix_size = SpinTupleAux::find_matrix_size<Tp...>() };
+    enum { spin_number = sizeof...(Tp) };
+    typedef Matrix<complexg, matrix_size, matrix_size> SpinMatrix;
+    typedef Matrix<double, matrix_size, 1> SpinVectorReal;
+private:
+    SpinMatrix Hfull;
+public:
+    std::vector< SpinBasePtr > S;
+
+    SpinTuple() 
+    {
+        SpinTupleAux::fill_S<Tp...>(S);
+    }
+
+private :
+    template <int I> SpinMatrix make_matrix_Hi(TransferSpinMatrix Hi) { 
+       constexpr static const int size_left = SpinTupleAux::find_left_matrix_size<I, Tp...>();
+       constexpr static const int size_i = SpinTupleAux::find_item_matrix_size<I, Tp...>();
+       constexpr static const int size_right = matrix_size / (size_left * size_i);
+       typedef Matrix<complexg, size_left, size_left> MatrixLeft;
+       typedef Matrix<complexg, size_i, size_i> MatrixItem;
+       typedef Matrix<complexg, size_right, size_right> MatrixRight;
+       return kroneckerProduct(MatrixLeft::Identity(), kroneckerProduct(Map< MatrixItem > (Hi), MatrixRight::Identity())).eval();
+    } 
+
+
+    template <int I, int J> inline typename std::enable_if< I < J, SpinMatrix>::type make_matrix_HiHj(TransferSpinMatrix Hi, TransferSpinMatrix Hj) { 
+       constexpr static const int size_I_left = SpinTupleAux::find_left_matrix_size<I, Tp...>();
+       constexpr static const int size_I = SpinTupleAux::find_item_matrix_size<I, Tp...>();
+       constexpr static const int size_J_left = SpinTupleAux::find_left_matrix_size<J, Tp...>();
+       constexpr static const int size_J = SpinTupleAux::find_item_matrix_size<J, Tp...>();
+       constexpr static const int size_J_right = matrix_size / (size_J_left * size_J);
+       constexpr static const int size_center = size_J_left / (size_I_left * size_I);
+
+       typedef Matrix<complexg, size_I_left, size_I_left> MatrixLeft;
+       typedef Matrix<complexg, size_I, size_I> MatrixI;
+       typedef Matrix<complexg, size_center, size_center> MatrixCenter;
+       typedef Matrix<complexg, size_J, size_J> MatrixJ;
+       typedef Matrix<complexg, size_J_right, size_J_right> MatrixRight;
+
+       return kroneckerProduct(MatrixLeft::Identity(), 
+		kroneckerProduct(Map< MatrixI > (Hi), 
+		  kroneckerProduct(MatrixCenter::Identity(), 
+		    kroneckerProduct(Map< MatrixJ > (Hj), MatrixRight::Identity())
+				   ))).eval();
+    } 
+
+
+    template <int I> inline typename std::enable_if< I < sizeof...(Tp), void>::type uncoupled_hamiltonian(void) { 
+        Hfull += make_matrix_Hi<I>( S[I]->hamiltonian_gen() );
+	uncoupled_hamiltonian<I+1>();
+    }
+
+    template <int I> inline typename std::enable_if< I == sizeof...(Tp), void>::type uncoupled_hamiltonian(void) { }
+
+public : 
+    void load_uncoupled_hamiltonian(void) { 
+       Hfull = SpinMatrix::Zero();
+       uncoupled_hamiltonian<0>(); 
+    }
+
+    template <int I, int J> void add_exchange(double Jij) { 
+       Hfull += Jij * make_matrix_HiHj<I, J> ( S[I]->Sx_gen(), S[J]->Sx_gen() );
+       Hfull += Jij * make_matrix_HiHj<I, J> ( S[I]->Sy_gen(), S[J]->Sy_gen() );
+       Hfull += Jij * make_matrix_HiHj<I, J> ( S[I]->Sz_gen(), S[J]->Sz_gen() );
+    }
+
+
+    // normalizes uvec to 1 
+    template <int I, int J> void add_dipole_dipole(double Jij, Vector3d uvec) { 
+       constexpr static const int size_I = SpinTupleAux::find_item_matrix_size<I, Tp...>();
+       constexpr static const int size_J = SpinTupleAux::find_item_matrix_size<J, Tp...>();
+       typedef Matrix<complexg, size_I, size_I> MatrixI;
+       typedef Matrix<complexg, size_J, size_J> MatrixJ;
+       double unorm = uvec.norm();
+       uvec /= unorm;
+       MatrixI uSI = uvec(0) * Map< MatrixI > ( S[I]->Sx_gen() ) 
+	           + uvec(1) * Map< MatrixI > ( S[I]->Sy_gen() )  
+	           + uvec(2) * Map< MatrixI > ( S[I]->Sz_gen() );       
+
+       MatrixJ uSJ = uvec(0) * Map< MatrixJ > ( S[J]->Sx_gen() ) 
+	           + uvec(1) * Map< MatrixJ > ( S[J]->Sy_gen() )  
+	           + uvec(2) * Map< MatrixJ > ( S[J]->Sz_gen() );       
+       add_exchange<I, J>(Jij);
+       Hfull -= 3.0 * Jij * make_matrix_HiHj<I, J> ( uSI.data(), uSJ.data() );
+    }
+
+    SpinMatrix hamiltonian(void) const { 
+       return Hfull;
+    }
+
+
+    SpinVectorReal eval;   // eigenvalues
+    SpinMatrix evec; // eigenvectors
+    void diag(void) { 
+       SelfAdjointEigenSolver<SpinMatrix> eigensolver(Hfull);
+       if (eigensolver.info() != Success) abort();
+       eval = eigensolver.eigenvalues();
+       evec = eigensolver.eigenvectors();
+    }
+ 
+
+};
+
+
+
+
 
 
 
@@ -373,7 +512,7 @@ private:
 public : 
     const SpinMatrix Jproj;
 
-    TripletPair(void) : 
+    TripletPair(void) :
       Jproj( (SpinMatrix() << 0, 0, si3(), 0, -si3(), 0, si3(), 0, 0,
 	      0, 0, 0, 0, 0, -si2(), 0, si2(), 0,
 	      0, 0, -si2(), 0, 0, 0, si2(), 0, 0,
@@ -410,6 +549,7 @@ public :
     }
 
 };
+
 
 /*
  * ODMR_Signal
@@ -692,34 +832,74 @@ namespace internal {
 }
 
 //
-// demonstration code for Merrifield class with both Liouville and rate equation versions
+// demonstration code for Spin Tuple code 
 //
-int main()
+int main_tuple() 
 {
     TripletPair triplet_pair;
     triplet_pair.S1.D = triplet_pair.S2.D = 0.1;
-    triplet_pair.S1.E = triplet_pair.S2.E = 0.0;
-
+    triplet_pair.S1.E = triplet_pair.S2.E = 0.0;    
+    triplet_pair.S1.B  << 0, 0, 1.0;
+    triplet_pair.S2.B  << 0, 0, 1.0;
     triplet_pair.S1.g3 << 1.0, 1.0, 1.0; // g factors in molecular frame 
     triplet_pair.S1.rot.random();
     triplet_pair.S2.rot.random();
     triplet_pair.r12 = random_unit_vector();
     triplet_pair.J = 5.0;
     triplet_pair.Jdip = 0.0;
+    triplet_pair.update_hamiltonian();
+    triplet_pair.diag(); // needed for PL_from_rate()
+    cout << "# TripletPair eval " << endl;
+    cout << triplet_pair.eval << endl;
+    
+    SpinTuple< TripletSpin, SpinHalf, TripletSpin > tuple_check;
+    *tuple_check.S[0] = triplet_pair.S1;
+    *tuple_check.S[2] = triplet_pair.S2;
+    tuple_check.S[1]->B << 0.0, 0.0, 0.0; // default field is zero anyway - syntax deponstration only 
+    tuple_check.load_uncoupled_hamiltonian();
+    tuple_check.add_exchange<0,2>(triplet_pair.J);
+    tuple_check.add_dipole_dipole<0,2>(triplet_pair.Jdip, triplet_pair.r12);
+    tuple_check.diag();
+    cout << "# SpinTuple eval " << endl;
+    cout << tuple_check.eval << endl;
+    return 0;
+}
 
+//
+// demonstration code for Merrifield class with both Liouville and rate equation versions
+//
+int main_merrifield()
+{
+    TripletPair triplet_pair;
+    triplet_pair.S1.D = triplet_pair.S2.D = 0.1;
+    triplet_pair.S1.E = triplet_pair.S2.E = 0.0;    
+    triplet_pair.S1.B  << 0, 0, 1.0;
+    triplet_pair.S2.B  << 0, 0, 1.0;
+    triplet_pair.S1.g3 << 1.0, 1.0, 1.0; // g factors in molecular frame 
+    triplet_pair.S1.rot.random();
+    triplet_pair.S2.rot.random();
+    triplet_pair.r12 = random_unit_vector();
+    triplet_pair.J = 5.0;
+    triplet_pair.Jdip = 0.0;
+    triplet_pair.update_hamiltonian();
+    triplet_pair.diag(); // needed for PL_from_rate()
+    cout << "# TripletPair eval " << endl;
+    cout << triplet_pair.eval << endl;
+    
     Merrifield<TripletPair> merrifield(triplet_pair);
     merrifield.gammaS = 0.1;
     merrifield.gamma = 0.15;
     
     for (double B = 0.0; B < 30; B += 0.01) { 
-       Vector3d Bvec;
-       Bvec << 0, 0, B;
-       triplet_pair.hamiltonian(Bvec);
+       triplet_pair.S1.B  << 0, 0, B;
+       triplet_pair.S2.B  << 0, 0, B;
+       triplet_pair.update_hamiltonian();
        triplet_pair.diag(); // needed for PL_from_rate()
        merrifield.find_rho();
        double PL = merrifield.PL();
        cout << B << "     " << PL << "    " << merrifield.PL_from_rate() << "     " << merrifield.rho_error() << endl;
     }
+    return 0;
 }
 
 //
@@ -734,7 +914,6 @@ int main_odmr()
     triplet_pair.S1.E = triplet_pair.S2.E = 0.15;
     triplet_pair.J = 0.0;
     triplet_pair.Jdip = 0.03;
-    triplet_pair.print_info();
     double Bz = 5.0;
     srand(1);
 
@@ -753,8 +932,9 @@ int main_odmr()
        triplet_pair.S1.rot = (Rotation::Y(0) * Rotation::X(theta)).eval();
        triplet_pair.S2.rot.random();
        triplet_pair.r12 = random_unit_vector();
-       Bvec << 0, 0, Bz;
-       triplet_pair.hamiltonian(Bvec);
+       triplet_pair.S1.B << 0, 0, Bz;
+       triplet_pair.S2.B << 0, 0, Bz;
+       triplet_pair.update_hamiltonian();
        triplet_pair.diag(); 
        double si = 0.0;
        for (int i = 0; i < triplet_pair.matrix_size ; i++) { 
@@ -839,4 +1019,8 @@ int main_odmr()
 
        cout << endl;
        return 0;
+}
+
+int main() {
+   return main_tuple();
 }
