@@ -399,12 +399,12 @@ template <typename... Tp> struct SpinTuple {
     typedef Matrix<double, matrix_size, 1> SpinVectorReal;
 private:
     SpinMatrix Hfull;
+    std::vector< SpinBasePtr > Svec;
 public:
-    std::vector< SpinBasePtr > S;
 
     SpinTuple() 
     {
-        SpinTupleAux::fill_S<Tp...>(S);
+        SpinTupleAux::fill_S<Tp...>(Svec);
     }
 
 private :
@@ -442,7 +442,7 @@ private :
 
 
     template <int I> inline typename std::enable_if< I < sizeof...(Tp), void>::type uncoupled_hamiltonian(void) { 
-        Hfull += make_matrix_Hi<I>( S[I]->hamiltonian_gen() );
+        Hfull += make_matrix_Hi<I>( Svec[I]->hamiltonian_gen() );
 	uncoupled_hamiltonian<I+1>();
     }
 
@@ -455,9 +455,9 @@ public :
     }
 
     template <int I, int J> void add_exchange(double Jij) { 
-       Hfull += Jij * make_matrix_HiHj<I, J> ( S[I]->Sx_gen(), S[J]->Sx_gen() );
-       Hfull += Jij * make_matrix_HiHj<I, J> ( S[I]->Sy_gen(), S[J]->Sy_gen() );
-       Hfull += Jij * make_matrix_HiHj<I, J> ( S[I]->Sz_gen(), S[J]->Sz_gen() );
+       Hfull += Jij * make_matrix_HiHj<I, J> ( Svec[I]->Sx_gen(), Svec[J]->Sx_gen() );
+       Hfull += Jij * make_matrix_HiHj<I, J> ( Svec[I]->Sy_gen(), Svec[J]->Sy_gen() );
+       Hfull += Jij * make_matrix_HiHj<I, J> ( Svec[I]->Sz_gen(), Svec[J]->Sz_gen() );
     }
 
 
@@ -469,16 +469,18 @@ public :
        typedef Matrix<complexg, size_J, size_J> MatrixJ;
        double unorm = uvec.norm();
        uvec /= unorm;
-       MatrixI uSI = uvec(0) * Map< MatrixI > ( S[I]->Sx_gen() ) 
-	           + uvec(1) * Map< MatrixI > ( S[I]->Sy_gen() )  
-	           + uvec(2) * Map< MatrixI > ( S[I]->Sz_gen() );       
+       MatrixI uSI = uvec(0) * Map< MatrixI > ( Svec[I]->Sx_gen() ) 
+	           + uvec(1) * Map< MatrixI > ( Svec[I]->Sy_gen() )  
+	           + uvec(2) * Map< MatrixI > ( Svec[I]->Sz_gen() );       
 
-       MatrixJ uSJ = uvec(0) * Map< MatrixJ > ( S[J]->Sx_gen() ) 
-	           + uvec(1) * Map< MatrixJ > ( S[J]->Sy_gen() )  
-	           + uvec(2) * Map< MatrixJ > ( S[J]->Sz_gen() );       
+       MatrixJ uSJ = uvec(0) * Map< MatrixJ > ( Svec[J]->Sx_gen() ) 
+	           + uvec(1) * Map< MatrixJ > ( Svec[J]->Sy_gen() )  
+	           + uvec(2) * Map< MatrixJ > ( Svec[J]->Sz_gen() );       
        add_exchange<I, J>(Jij);
        Hfull -= 3.0 * Jij * make_matrix_HiHj<I, J> ( uSI.data(), uSJ.data() );
     }
+
+    GenericSpinBase &S(int i) { return *Svec[i]; }
 
     SpinMatrix hamiltonian(void) const { 
        return Hfull;
@@ -853,9 +855,9 @@ int main_tuple()
     cout << triplet_pair.eval << endl;
     
     SpinTuple< TripletSpin, SpinHalf, TripletSpin > tuple_check;
-    *tuple_check.S[0] = triplet_pair.S1;
-    *tuple_check.S[2] = triplet_pair.S2;
-    tuple_check.S[1]->B << 0.0, 0.0, 0.0; // default field is zero anyway - syntax deponstration only 
+    tuple_check.S(0) = triplet_pair.S1;
+    tuple_check.S(2) = triplet_pair.S2;
+    tuple_check.S(1).B << 0.0, 0.0, 0.0; // default field is zero anyway - syntax demonstration only 
     tuple_check.load_uncoupled_hamiltonian();
     tuple_check.add_exchange<0,2>(triplet_pair.J);
     tuple_check.add_dipole_dipole<0,2>(triplet_pair.Jdip, triplet_pair.r12);
