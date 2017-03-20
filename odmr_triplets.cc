@@ -275,23 +275,28 @@ public:
 private : 
     SpinMatrix Hfull; // Hamiltonian 
 
-    SpinMatrix exchange_matrix(void) { 
+public : 
+  /**
+    static const SpinMatrix exchange_matrix(void) const { 
        return kroneckerProduct(S1.Sx, S2.Sx).eval() + kroneckerProduct(S1.Sy, S2.Sy).eval() + kroneckerProduct(S1.Sz, S2.Sz).eval();
     }
+  **/
+    static SpinMatrix exchange_matrix(void) { 
+       return kroneckerProduct(Spin1::Sx, Spin2::Sx).eval() + kroneckerProduct(Spin1::Sy, Spin2::Sy).eval() + kroneckerProduct(Spin1::Sz, Spin2::Sz).eval();
+    }
 
-    SpinMatrix dipole_dipole_matrix(Vector3d uvec) {       
+    static SpinMatrix dipole_dipole_matrix(Vector3d uvec) {       
        double unorm = uvec.norm();
        if (abs(unorm) > 1e-15) { 
 	  uvec /= unorm;
-	  typename Spin1::SpinMatrix uS1 = uvec(0) * S1.Sx + uvec(1) * S1.Sy + uvec(2) * S1.Sz;       
-	  typename Spin2::SpinMatrix uS2 = uvec(0) * S2.Sx + uvec(1) * S2.Sy + uvec(2) * S2.Sz;       
+	  typename Spin1::SpinMatrix uS1 = uvec(0) * Spin1::Sx + uvec(1) * Spin1::Sy + uvec(2) * Spin1::Sz;       
+	  typename Spin2::SpinMatrix uS2 = uvec(0) * Spin2::Sx + uvec(1) * Spin2::Sy + uvec(2) * Spin2::Sz;       
 	  return (exchange_matrix() - 3.0 * kroneckerProduct(uS1, uS2).eval());
        } else {
 	  return SpinMatrix() = SpinMatrix::Zero();
        }
     }
 
-public : 
     enum { matrix_size = Spin1::matrix_size * Spin2::matrix_size };
     double J;
     double Jdip;
@@ -303,11 +308,18 @@ public :
     SpinPair(void) : S1(), 
 		     S2() 
     { 
+       J = Jdip = 0;
+       r12 << 0, 0, 1;
     }
 
     SpinMatrix update_hamiltonian(void) { 
        Hfull = kroneckerProduct( S1.update_hamiltonian(), S2.Id ).eval() + kroneckerProduct( S1.Id, S2.update_hamiltonian() ).eval() 
 	 + J * exchange_matrix() + Jdip * dipole_dipole_matrix(r12);
+       return Hfull;
+    }
+
+    SpinMatrix add_matrix(const SpinMatrix &M) { 
+       Hfull += M;
        return Hfull;
     }
 
@@ -454,12 +466,16 @@ public :
        uncoupled_hamiltonian<0>(); 
     }
 
+
     template <int I, int J> void add_exchange(double Jij) { 
        Hfull += Jij * make_matrix_HiHj<I, J> ( Svec[I]->Sx_gen(), Svec[J]->Sx_gen() );
        Hfull += Jij * make_matrix_HiHj<I, J> ( Svec[I]->Sy_gen(), Svec[J]->Sy_gen() );
        Hfull += Jij * make_matrix_HiHj<I, J> ( Svec[I]->Sz_gen(), Svec[J]->Sz_gen() );
     }
 
+    void add_matrix(const SpinMatrix &M) { 
+       Hfull += M;
+    }
 
     // normalizes uvec to 1 
     template <int I, int J> void add_dipole_dipole(double Jij, Vector3d uvec) { 
@@ -507,23 +523,15 @@ public :
 
 class TripletPair : public SpinPair<TripletSpin, TripletSpin> {
 private: 
-    const double s2i3(void) const { return sqrt(2.0/3.0); }
-    const double si2(void) const { return 1.0/sqrt(2.0); }
-    const double si3(void) const { return 1.0/sqrt(3.0); } 
-    const double si6(void) const { return 1.0/sqrt(6.0); }
-public : 
-    const SpinMatrix Jproj;
+    static const double s2i3(void) { return sqrt(2.0/3.0); }
+    static const double si2(void)  { return 1.0/sqrt(2.0); }
+    static const double si3(void)  { return 1.0/sqrt(3.0); } 
+    static const double si6(void)  { return 1.0/sqrt(6.0); }
 
-    TripletPair(void) :
-      Jproj( (SpinMatrix() << 0, 0, si3(), 0, -si3(), 0, si3(), 0, 0,
-	      0, 0, 0, 0, 0, -si2(), 0, si2(), 0,
-	      0, 0, -si2(), 0, 0, 0, si2(), 0, 0,
-	      0, -si2(), 0, si2(), 0, 0, 0, 0, 0,
-	      0,    0, 0,   0, 0, 0, 0, 0, 1.0, 
-	      0, 0, 0, 0, 0, si2(), 0, si2(), 0,
-	      0, 0, si6(), 0, s2i3(), 0, si6(), 0, 0,
-	      0, si2(), 0, si2(), 0, 0, 0, 0, 0,
-	      1.0, 0, 0, 0, 0, 0, 0, 0, 0 ).finished() ) 
+public : 
+    static const SpinMatrix Jproj;
+
+    TripletPair(void) 
     {
     }
 
@@ -546,12 +554,23 @@ public :
        return real(norm2(0));
     }
 
-    const SpinMatrix singlet_projector(void) const { 
+    static const SpinMatrix singlet_projector(void) { 
        return Jproj.row(0).adjoint() * Jproj.row(0);
     }
 
 };
 
+const TripletPair::SpinMatrix TripletPair::Jproj ( 
+						   (SpinMatrix() << 0, 0, si3(), 0, -si3(), 0, si3(), 0, 0,
+						    0, 0, 0, 0, 0, -si2(), 0, si2(), 0,
+						    0, 0, -si2(), 0, 0, 0, si2(), 0, 0,
+						    0, -si2(), 0, si2(), 0, 0, 0, 0, 0,
+						    0,    0, 0,   0, 0, 0, 0, 0, 1.0, 
+						    0, 0, 0, 0, 0, si2(), 0, si2(), 0,
+						    0, 0, si6(), 0, s2i3(), 0, si6(), 0, 0,
+						    0, si2(), 0, si2(), 0, 0, 0, 0, 0,
+						    1.0, 0, 0, 0, 0, 0, 0, 0, 0 ).finished()
+						    );
 
 /*
  * ODMR_Signal
@@ -698,8 +717,6 @@ public :
  * spins.singlet_projector()
  * spins.hamiltonian()
  *
- * function PL_from_rate() uses spins.singlet_content 
- *
  */ 
 #include <Eigen/Core>
 #include <Eigen/IterativeLinearSolvers>
@@ -723,8 +740,6 @@ template <class SpinSystem> class Merrifield :public Eigen::EigenBase< Merrifiel
 public:
     double gammaS;
     double gamma;
-    double gen;
-    
 
     // Required typedefs, constants, and method:
     typedef complexg Scalar;
@@ -732,8 +747,9 @@ public:
     typedef int StorageIndex;
     typedef Matrix<complexg, SpinSystem::matrix_size, SpinSystem::matrix_size> SpinMatrix;
     typedef Matrix<complexg, SpinSystem::matrix_size*SpinSystem::matrix_size, 1> SpinMatrixVecForm;
-    SpinMatrix Ps;
     SpinMatrix rho;
+    SpinMatrix Ps;
+
 
     enum {
        ColsAtCompileTime = Eigen::Dynamic,
@@ -793,23 +809,55 @@ public:
     double PL(void) { 
 	Matrix<complexg, 1, 1> sum;
 	for (int i = 0; i < SpinSystem::matrix_size; i++) {
-	   sum += Ps.row(i) * rho.col(i);
+ 	   sum += Ps.row(i) * rho.col(i);
 	}
 	return real(sum(0));
     }
 
 
-    double PL_from_rate(void) { 
+};
+
+/*
+ * Merrifield from rate equations 
+ * requires 
+ * 
+ * Input : spins, a reference on SpinSystem object
+ * SpinSystem should define 
+ * spins.matrix_size
+ * spins.singlet_content 
+ */
+template <class SpinSystem> class MerrifieldRate { 
+    SpinSystem &spins;
+public:
+    typedef typename SpinSystem::SpinMatrix SpinMatrix;
+    typedef Matrix<complexg, SpinSystem::matrix_size*SpinSystem::matrix_size, 1> SpinMatrixVecForm;
+    SpinMatrix rho;
+
+    MerrifieldRate(SpinSystem &spin_system) : spins(spin_system) {
+    }
+
+    double gamma;
+    double gammaS;
+    
+
+    void find_rho(void) { 
+        rho = SpinMatrix::Zero();
+	for (int i = 0; i < SpinSystem::matrix_size; i++) {
+	   double alpha_i = spins.singlet_content(i);
+	   rho(i, i) = alpha_i / (gamma + 2.0 * gammaS * alpha_i);
+	}	
+	rho = spins.evec * rho * spins.evec.adjoint();
+    }
+
+    double PL(int npow = 2) { 
         double sum = 0.0;
 	for (int i = 0; i < SpinSystem::matrix_size; i++) {
 	   double alpha_n = spins.singlet_content(i);
-	   sum += alpha_n * alpha_n / (gamma + gammaS * alpha_n);
+	   sum += pow(alpha_n, npow) / (gamma + 2.0 * gammaS * alpha_n);
 	}
 	return sum;
     }
-
 };
-
 
 namespace Eigen {
 namespace internal {
@@ -833,6 +881,105 @@ namespace internal {
 }
 }
 
+typedef SpinTuple< TripletSpin, TripletSpin, SpinHalf > HFE_SpinTuple;
+
+struct HFE : public HFE_SpinTuple { 
+   typedef HFE_SpinTuple::SpinMatrix  SpinMatrix;
+
+   double J;
+   double dJ;
+   double t;
+   double Jdip;
+   Vector3d r12;
+
+   HFE() { 
+      J = dJ = t = Jdip = 0.0;
+      r12 << 0, 0, 1;
+   }
+
+   SpinMatrix update_hamiltonian(void) { 
+       S(2).B << t, 0, 0;
+       load_uncoupled_hamiltonian();
+       add_exchange<0,1>(J);
+       add_dipole_dipole<0,1>(Jdip, r12);
+       add_matrix( dJ * kroneckerProduct( TripletPair::exchange_matrix(), SpinHalf::Sz ).eval() );
+       return hamiltonian();
+   }
+
+    static const SpinMatrix singlet_projector(void) { 
+       return kroneckerProduct( TripletPair::singlet_projector(), SpinHalf::Id ).eval();
+    }
+
+    double singlet_content(int i) {
+      //       Matrix<complexg, 1, 1> iProj = evec.block(0, i, matrix_size, 1).adjoint() * singlet_projector() * evec.block(0, i, matrix_size, 1);
+       Matrix<complexg, 1, 1> iProj = evec.col(i).adjoint() * singlet_projector() * evec.col(i);
+       return real(iProj(0,0));
+    }
+
+
+    double PLa(const SpinMatrix &rho) {
+       static const SpinMatrix Pa = kroneckerProduct( TripletPair::singlet_projector(), (SpinHalf::SpinMatrix() << 1.0, 0.0, 0.0, 0.0).finished() ).eval();
+       Matrix<complexg, 1, 1> trace;
+       trace << 0.0;
+       for (int i = 0; i < rho.rows(); i++) { 
+	 trace += Pa.row(i) * rho.col(i);
+       }
+       return real(trace(0,0));
+    }
+
+    double PLb(const SpinMatrix &rho) {
+       static const SpinMatrix Pb = kroneckerProduct( TripletPair::singlet_projector(), (SpinHalf::SpinMatrix() << 0.0, 0.0, 0.0, 1.0).finished() ).eval();
+       Matrix<complexg, 1, 1> trace;
+       trace << 0.0;
+       for (int i = 0; i < rho.rows(); i++) { 
+	 trace += Pb.row(i) * rho.col(i);
+       }
+       return real(trace(0,0));
+    }
+
+};
+
+int main_hfe() 
+{
+    HFE hfe_spins;
+    hfe_spins.S(0).D = hfe_spins.S(1).D = 0.1;
+    hfe_spins.S(0).rot = Rotation::X(0).eval();
+    hfe_spins.S(1).rot = Rotation::X(M_PI/2.0).eval();
+    hfe_spins.J = 5.0/3.0;
+    hfe_spins.dJ = 1.0/3.0;
+    hfe_spins.t = 0.3;
+    
+    Merrifield<HFE> merrifield(hfe_spins);
+    merrifield.gammaS = 0.001;
+    merrifield.gamma = 0.003;
+
+    MerrifieldRate<HFE> mr(hfe_spins);
+    mr.gammaS = merrifield.gammaS;
+    mr.gamma = merrifield.gamma;
+
+    for (double B = 0.0; B < 20; B += 0.003) { 
+       hfe_spins.S(0).B  << 0, 0, B;
+       hfe_spins.S(1).B  << 0, 0, B;
+       hfe_spins.update_hamiltonian();
+       hfe_spins.diag(); // needed for PL_from_rate()
+       merrifield.find_rho();
+       mr.find_rho();
+
+       double PLa = hfe_spins.PLa( merrifield.rho );
+       double PLb = hfe_spins.PLb( merrifield.rho );
+       double PLar = hfe_spins.PLa( mr.rho );
+       double PLbr = hfe_spins.PLb( mr.rho );
+
+       cout << B << "     " 
+	    << merrifield.PL() << "    " << mr.PL() << "     " 
+	    << PLa << "    " << PLb << "     " 
+	    << PLar << "    " << PLbr << "     " 
+	    << merrifield.rho_error() << endl;
+    }
+    return 0;
+}
+
+
 //
 // demonstration code for Spin Tuple code 
 //
@@ -847,20 +994,21 @@ int main_tuple()
     triplet_pair.S1.rot.random();
     triplet_pair.S2.rot.random();
     triplet_pair.r12 = random_unit_vector();
-    triplet_pair.J = 5.0;
+    triplet_pair.J = 5.0/3.0;
     triplet_pair.Jdip = 0.0;
     triplet_pair.update_hamiltonian();
     triplet_pair.diag(); // needed for PL_from_rate()
     cout << "# TripletPair eval " << endl;
     cout << triplet_pair.eval << endl;
     
-    SpinTuple< TripletSpin, SpinHalf, TripletSpin > tuple_check;
+    SpinTuple< TripletSpin, TripletSpin, SpinHalf > tuple_check;
     tuple_check.S(0) = triplet_pair.S1;
-    tuple_check.S(2) = triplet_pair.S2;
-    tuple_check.S(1).B << 0.0, 0.0, 0.0; // default field is zero anyway - syntax demonstration only 
+    tuple_check.S(1) = triplet_pair.S2;
+    tuple_check.S(2).B << 0.0, 0.0, 0.0; // default field is zero anyway - syntax demonstration only 
     tuple_check.load_uncoupled_hamiltonian();
-    tuple_check.add_exchange<0,2>(triplet_pair.J);
-    tuple_check.add_dipole_dipole<0,2>(triplet_pair.Jdip, triplet_pair.r12);
+    tuple_check.add_exchange<0,1>(triplet_pair.J);
+    tuple_check.add_dipole_dipole<0,1>(triplet_pair.Jdip, triplet_pair.r12);
+
     tuple_check.diag();
     cout << "# SpinTuple eval " << endl;
     cout << tuple_check.eval << endl;
@@ -877,32 +1025,95 @@ int main_merrifield()
     triplet_pair.S1.E = triplet_pair.S2.E = 0.0;    
     triplet_pair.S1.B  << 0, 0, 1.0;
     triplet_pair.S2.B  << 0, 0, 1.0;
-    triplet_pair.S1.g3 << 1.0, 1.0, 1.0; // g factors in molecular frame 
+    triplet_pair.S1.g3 << 1.0, 1.0, 1.01; // g factors in molecular frame 
+    triplet_pair.S1.g3 << 1.02, 1.0, 1.00; // g factors in molecular frame 
+    //    triplet_pair.S1.rot = Rotation::X(0).eval();
+    //    triplet_pair.S2.rot = Rotation::X(M_PI/2.0).eval();
     triplet_pair.S1.rot.random();
     triplet_pair.S2.rot.random();
+
     triplet_pair.r12 = random_unit_vector();
-    triplet_pair.J = 5.0;
+    //    triplet_pair.J = 5.0/3.0;
+    triplet_pair.J = 0.0;
     triplet_pair.Jdip = 0.0;
     triplet_pair.update_hamiltonian();
+
+    double t = 3.0*5.0/3.0;
+    TripletPair::SpinMatrix tex = TripletPair::SpinMatrix::Zero();
+    for (int i = 0; i < 3; i++) { 
+       tex(i*3+i, i*3+i) = t;
+    }
+    for (int i = 0; i < 3; i++) { 
+       for (int j = 0; j < i; j++) { 
+	  tex(i*3+j, j*3+i) = 0.5*t;
+	  tex(j*3+i, i*3+j) = 0.5*t;
+       }
+    } 
     triplet_pair.diag(); // needed for PL_from_rate()
-    cout << "# TripletPair eval " << endl;
-    cout << triplet_pair.eval << endl;
-    
+
     Merrifield<TripletPair> merrifield(triplet_pair);
-    merrifield.gammaS = 0.1;
-    merrifield.gamma = 0.15;
+    merrifield.gammaS = 0.001;
+    merrifield.gamma = 0.003;
+
+
+    MerrifieldRate<TripletPair> mr(triplet_pair);
+    mr.gammaS = merrifield.gammaS;
+    mr.gamma = merrifield.gamma;
     
-    for (double B = 0.0; B < 30; B += 0.01) { 
+    for (double B = 0.0; B < 20; B += 0.003) { 
        triplet_pair.S1.B  << 0, 0, B;
        triplet_pair.S2.B  << 0, 0, B;
        triplet_pair.update_hamiltonian();
-       triplet_pair.diag(); // needed for PL_from_rate()
+       triplet_pair.add_matrix(tex);
+       triplet_pair.diag(); // needed for MerrifieldRate
        merrifield.find_rho();
        double PL = merrifield.PL();
-       cout << B << "     " << PL << "    " << merrifield.PL_from_rate() << "     " << merrifield.rho_error() << endl;
+       cout << B << "     " << PL << "    " << mr.PL() << "     " << merrifield.rho_error() << endl;
     }
     return 0;
 }
+
+
+
+int main_diag()
+{
+    TripletPair triplet_pair;
+    triplet_pair.J = -1.0;
+    triplet_pair.update_hamiltonian();
+    triplet_pair.diag(); // needed for PL_from_rate()
+
+    for (int i = 0; i < TripletPair::matrix_size; i++) { 
+      cout << i << "   " << triplet_pair.eval[i] << "    " << triplet_pair.singlet_content(i) << "   " << triplet_pair.triplet_content(i) << "   " << triplet_pair.quintet_content(i) << endl;
+    }
+    cout << "#" << endl;
+
+    TripletPair t2;
+    double t = 2.0;
+    TripletPair::SpinMatrix tex = TripletPair::SpinMatrix::Zero();
+    for (int i = 0; i < 3; i++) { 
+       tex(i*3+i, i*3+i) = t;
+    }
+
+    double s = 1.0;
+    for (int i = 0; i < 3; i++) { 
+       for (int j = 0; j < i; j++) { 
+	  tex(i*3+j, j*3+i) = s;
+	  tex(j*3+i, i*3+j) = s;
+       }
+    }
+
+    t2.add_matrix(tex);
+    t2.diag(); // needed for PL_from_rate()
+    for (int i = 0; i < TripletPair::matrix_size; i++) { 
+      cout << i << "   " << t2.eval[i] << "    " << t2.singlet_content(i) << "   " << t2.triplet_content(i) << "   " << t2.quintet_content(i) << endl;
+    }
+
+    return 1.0;
+
+
+
+}
+
 
 //
 // demonstration code for MR/ODMR colormap as function of B and frequency 
@@ -1024,5 +1235,5 @@ int main_odmr()
 }
 
 int main() {
-   return main_tuple();
+    return main_hfe();
 }
