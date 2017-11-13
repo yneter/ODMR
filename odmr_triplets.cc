@@ -163,10 +163,20 @@ public :
        return R;
     }
 
+    void angle_and_direction(double theta, const Vector3d &v) { 
+       M = AngleAxis<double> ( theta, v );
+       mat2euler(M, angles);
+    }
+
+    void angle_phi_uz(double theta1, double phi1, double uz1) { 
+       Vector3d u1;
+       u1 << cos(phi1) * sqrt(1. - uz1*uz1), sin(phi1) * sqrt(1. - uz1*uz1), uz1;
+       angle_and_direction(theta1, u1);
+    }
 
     void random(void) { 
        M = AngleAxis<double> ( 2.0 * M_PI * myrand(), random_unit_vector() );
-       init_from_matrix(M);
+       mat2euler(M, angles);
     }
 };
 
@@ -770,6 +780,18 @@ public:
     Merrifield(SpinSystem &spin_system) : spins(spin_system) {
        Ps = spins.singlet_projector();
     }
+private : 
+    double trace_rho_Ps(void) { 
+	Matrix<complexg, 1, 1> sum;
+	for (int i = 0; i < SpinSystem::matrix_size; i++) {
+ 	   sum += Ps.row(i) * rho.col(i);
+	}
+	return real(sum(0));
+    }
+
+
+
+public  : 
 
     SpinMatrix Liouvillian(const SpinMatrix &rho) const { 
       SpinMatrix L = -iii * ( spins.hamiltonian() * rho - rho * spins.hamiltonian() )
@@ -807,11 +829,7 @@ public:
     }
 
     double PL(void) { 
-	Matrix<complexg, 1, 1> sum;
-	for (int i = 0; i < SpinSystem::matrix_size; i++) {
- 	   sum += Ps.row(i) * rho.col(i);
-	}
-	return real(sum(0));
+        return trace_rho_Ps();
     }
 
 
@@ -939,18 +957,23 @@ struct HFE : public HFE_SpinTuple {
 
 };
 
+
+#ifdef EXAMPLE_MAINS
+
 int main_hfe() 
 {
     HFE hfe_spins;
     hfe_spins.S(0).D = hfe_spins.S(1).D = 0.1;
     hfe_spins.S(0).rot = Rotation::X(0).eval();
     hfe_spins.S(1).rot = Rotation::X(M_PI/2.0).eval();
+    hfe_spins.S(0).g3 << 1.0, 1.1, 1.2;
+    hfe_spins.S(1).g3 << 1.3, 1.0, 1.0;
     hfe_spins.J = 5.0/3.0;
     hfe_spins.dJ = 1.0/3.0;
     hfe_spins.t = 0.3;
     
     Merrifield<HFE> merrifield(hfe_spins);
-    merrifield.gammaS = 0.001;
+    merrifield.gammaS = -0.001;
     merrifield.gamma = 0.003;
 
     MerrifieldRate<HFE> mr(hfe_spins);
@@ -1237,3 +1260,5 @@ int main_odmr()
 int main() {
     return main_hfe();
 }
+
+#endif 
