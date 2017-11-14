@@ -13,7 +13,9 @@
 #include <string>
 #include <Eigen/Dense>
 
-#include "odmr_triplets.cc"
+#define OPTIMIZE_DIPOLE_DIPOLE
+
+#include "../odmr_triplets.cc"
 
 class ODMR_Matrix { 
     double Bmin, Bmax, FreqMin, FreqMax, dB, dFreq;
@@ -165,9 +167,11 @@ public:
    double Jdip_max;
    double Amp_max;
    double Gamma_max;
+   bool use_chi1;
+
 
    Triplet_Pair_From_Gene(void) : triplets(NPAIRS), Amps(NPAIRS) { 
-
+      use_chi1 = true;
    }
 
    void triplet_pair_from_vector(int index, const std::vector<double> &pairvec, double Bz)
@@ -255,12 +259,20 @@ private:
 	 odmr_from_triplets.update_from_spin_hamiltonian();
 	 odmr_from_triplets.gamma = gene[n * N_TP + GAMMA];
 	 odmr_from_triplets.gamma_diag = gene[n * N_TP + GAMMA];
-	 // odmr_from_triplets.load_rho0_thermal(1000.0);
-	 odmr_from_triplets.load_rho0_from_singlet();
-	 for (int i = 0; i < NX; i++) { 
-	    double omega = data.dec_x(i);
-	    //	    signal[i] += Amps[n] * imag(odmr_from_triplets.chi1(omega));
-	    signal[i] += Amps[n] * odmr_from_triplets.odmr(omega);
+
+	 if (use_chi1) { 
+	    odmr_from_triplets.load_rho0_thermal(1000.0);
+	    for (int i = 0; i < NX; i++) { 
+	       double omega = data.dec_x(i);
+	       signal[i] += Amps[n] * imag(odmr_from_triplets.chi1(omega));
+	    }
+	 } else { 
+	    odmr_from_triplets.load_rho0_from_singlet();
+	    for (int i = 0; i < NX; i++) { 
+	       double omega = data.dec_x(i);
+	       //	    signal[i] += Amps[n] * imag(odmr_from_triplets.chi1(omega));
+	       signal[i] += Amps[n] * odmr_from_triplets.odmr(omega);
+	    }
 	 }
       }
    }
@@ -282,6 +294,24 @@ public:
       return 1.0 / gene_score;
    }
 
+   void read_gene(const char *filename, double gene[]) {  
+       std::ifstream infile(filename);    
+       std::string line;
+
+       int i = 0;
+       while (std::getline(infile, line)) {  
+	 std::istringstream iss(line);
+	 double niter,index,val;
+	 if ((iss >> niter >> index >> val)) { 
+	    gene[i] = val;
+	 }
+	 i++;
+       }
+       if (i != N_TP * NPAIRS) { 
+	  std::cerr << "read_gene - incorrect read " << i << "  " << N_TP * NPAIRS << std::endl;
+       }
+   }
+
    void print_gene(const double gene[]) { 
       int NB = data.Ysize();
       int Nomega = data.Xsize();
@@ -290,12 +320,14 @@ public:
 	 double Bz = data.dec_y(b);	
 	 update_triplets_from_gene_at_Bz(gene, Bz);
 	 std::cout << "# Bz " << Bz << std::endl;
-	 std::cout << triplets[0].hamiltonian() << std::endl;
 	 std::cout << "# Ds " << triplets[0].S1.D << "   " << triplets[0].S2.D << std::endl;
 	 std::cout << "# Es " << triplets[0].S1.E << "   " << triplets[0].S2.E << std::endl;
 	 std::cout << "# B " << triplets[0].S1.B << "   " << triplets[0].S2.B << std::endl;
 	 std::cout << "# M1 " << triplets[0].S1.rot.matrix()  << std::endl;
 	 std::cout << "# M2 " << triplets[0].S2.rot.matrix()  << std::endl;
+	 std::cout << "# J " << triplets[0].J << std::endl;
+	 std::cout << "# Jdip " << triplets[0].Jdip << std::endl;
+	 std::cout << "# r12 " << triplets[0].r12 << std::endl;
 	 comp_signal_for_omega(gene);
 	 for (int w = 0; w < Nomega; w++) { 
 	    double omega = data.dec_x(w);
@@ -309,6 +341,7 @@ public:
      std::cout << "# Dmax " <<  Dmax << std::endl;
      std::cout << "# Emax " <<  Emax << std::endl;
      std::cout << "# Jmax " <<  Jmax << std::endl;
+     std::cout << "# use_chi1 instead of odmr " << use_chi1 << std::endl;
 #ifdef OPTIMIZE_DIPOLE_DIPOLE
      std::cout << "# Jdip_max " <<  Jdip_max << std::endl;
 #else
@@ -316,6 +349,7 @@ public:
 #endif
      std::cout << "# Amp_max " <<  Amp_max << std::endl;
      std::cout << "# Gamma_max " <<  Gamma_max << std::endl;
+     std::cout << "# NPAIRS " << NPAIRS << std::endl;
    }
 };
 
@@ -692,9 +726,6 @@ public :
    }
 };
 
-
-
-
 main()
 {
     Triplet_Pair_From_Gene odmr;
@@ -702,22 +733,26 @@ main()
     odmr.data.load_parameters();
     odmr.data.Ymin = -100;
     odmr.data.Ymax = 40;
+    //    odmr.data.Xmin = 800;
+    //    odmr.data.Xmax = 1500;
     odmr.data.load_matrix();
     odmr.data.print_info();
 
-    odmr.Dmax = 1000;
+    odmr.Dmax = 2000;
     odmr.Emax = odmr.Dmax/3.0;
     odmr.Jmax = odmr.Dmax;
     odmr.Jdip_max = odmr.Dmax;
     odmr.Amp_max = 100.0;
     odmr.Gamma_max = 50.0;
+    odmr.use_chi1 = true;
     odmr.print_info();
 
-    double gene0[NVARS] = { 373.177, 637.833, -78.2142, 21.1754, -660.217, -850.44, -0.0933823, -0.613719,  -0.280494, -0.876076, -1.57854, 1.71362, 0.0701352, -1.11553, -24.5178,  33.1732 };
-
-    std::cout << odmr.score(gene0) << std::endl;
+    /***
+    double gene0[NVARS];
+    odmr.read_gene("opt2.gene", gene0);
     odmr.print_gene(gene0);
     exit(0);
+    ***/
 
     simple_GA<Triplet_Pair_From_Gene> ga(odmr);
     ga.initialize();
