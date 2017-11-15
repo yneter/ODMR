@@ -535,19 +535,25 @@ public :
    }  
   **/
 
-   void initialize (const double *init = NULL) {
+   void initialize (void) {
       for (int j = 0; j <= POPSIZE; j++ ) {
+	 population[j].fitness = 0;	
+	 population[j].score = 0;	
+	 population[j].rfitness = 0;
+	 population[j].cfitness = 0;
          for (int i = 0; i < NVARS; i++ ) {
-	    population[j].fitness = 0;	
-	    population[j].score = 0;	
-	    population[j].rfitness = 0;
-	    population[j].cfitness = 0;
 	    population[j].lower[i] = ffinder.lower(i);
 	    population[j].upper[i] = ffinder.upper(i);
 	    population[j].gene[i] = real_uniform_ab (population[j].lower[i], population[j].upper[i]); 
 	 }
       }
    }  
+
+   void initial_values(int num, const double *gene) { 
+      for (int i = 0; i < NVARS; i++ ) {
+	 population[num].gene[i] = gene[i];
+      }
+   }
 
    void keep_the_best (void) { 
       int cur_best;
@@ -747,15 +753,12 @@ main()
     odmr.use_chi1 = true;
     odmr.print_info();
 
-    /***
     double gene0[NVARS];
     odmr.read_gene("opt2.gene", gene0);
-    odmr.print_gene(gene0);
-    exit(0);
-    ***/
 
     simple_GA<Triplet_Pair_From_Gene> ga(odmr);
     ga.initialize();
+    ga.initial_values(0, gene0);
     ga.print_info();
     ga.evaluate ();
     std::cout << "# ga evaluate "  << std::endl;
