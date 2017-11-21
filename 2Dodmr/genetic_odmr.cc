@@ -14,8 +14,9 @@
 #include <Eigen/Dense>
 
 #define OPTIMIZE_DIPOLE_DIPOLE
+// #define OPTIMIZE_POPULATION
 
-#include "../odmr_triplets.cc"
+#include "odmr_triplets.cc"
 
 class ODMR_Matrix { 
     double Bmin, Bmax, FreqMin, FreqMax, dB, dFreq;
@@ -99,7 +100,7 @@ public :
     }
 
 
-    void load_matrix(void) { 
+    void load_matrix(bool use_sign = false) { 
        NY = ceil( (Ymax - Ymin) / dy);
        NX = ceil( (Xmax - Xmin) / dx);
        //       std::cerr << NX << std::endl;
@@ -109,6 +110,7 @@ public :
        std::ifstream infile(source_filename.c_str());    
        std::string line;
 
+       std::cout << "# load_matrix use sign " << use_sign << std::endl;
        while (std::getline(infile, line)) {  
 	 std::istringstream iss(line);
 	 double Freq,FreqBis,B,Icoil,vx,vy;
@@ -116,7 +118,11 @@ public :
 	    double x = Freq * freq_scale;
 	    double y = B * B_scale;
 	    if (x >= Xmin && x < Xmax && y >= Ymin && y < Ymax) { 
-	       odmr( enc_x(x), enc_y(y) ) = amp_scale * sqrt(vx*vx+vy*vy);
+	       if (use_sign) { 
+		  odmr( enc_x(x), enc_y(y) ) = amp_scale * vx;	      
+	       } else {
+		  odmr( enc_x(x), enc_y(y) ) = amp_scale * sqrt(vx*vx+vy*vy);
+	       }
 	    }
 	 }
        }
@@ -147,20 +153,24 @@ public :
 
 
 
-
 class Triplet_Pair_From_Gene {
+public: 
+   enum TPenum { D1, D2, E1, E2, NJ, 
+#ifdef OPTIMIZE_DIPOLE_DIPOLE
+		 JDIP, PHI12, UZ12, 
+#endif
+		 PHI1, UZ1, THETA1, PHI2, UZ2, THETA2, AMP, GAMMA, 
+		 NPARAMETERS } ;
+   enum { NPAIRS = 1 };
+   enum { NVARS = NPAIRS * NPARAMETERS };
+
    std::vector<TripletPair> triplets;
    std::vector<double> Amps;
    std::vector<double> signal;
-public: 
-#ifdef OPTIMIZE_DIPOLE_DIPOLE
-   enum TPenum { D1, D2, E1, E2, NJ, JDIP, PHI12, UZ12, PHI1, UZ1, THETA1, PHI2, UZ2, THETA2, AMP, GAMMA, N_TP } ;
-#else
-   enum TPenum { D1, D2, E1, E2, NJ, PHI1, UZ1, THETA1, PHI2, UZ2, THETA2, AMP, GAMMA, N_TP } ;
-#endif 
-   static const int NPAIRS;
+   std::vector<double> rho0;
 
    ODMR_Matrix data;
+
    double Dmax;
    double Emax;
    double Jmax;
@@ -200,7 +210,7 @@ public:
 
 
    double upper(int i) { 
-      TPenum index = static_cast<TPenum>(i % N_TP);
+      TPenum index = static_cast<TPenum>(i % NPARAMETERS);
       switch (index) {
          case D1: 
          case D2:
@@ -227,7 +237,7 @@ public:
          case GAMMA:
 	    return Gamma_max;
          default:
-	    throw "case error: N_TP should not occur";
+	    throw "case error: should not occur";
       }
    }
 
@@ -236,16 +246,19 @@ public:
       else { return -upper(i); }
    }
 
-private:
    void update_triplets_from_gene_at_Bz(const double gene[], double Bz) { 
-      std::vector<double> pairvec(N_TP);
+      std::vector<double> pairvec(NPARAMETERS);
       for (int i = 0; i < NPAIRS; i++) { 
-	 for (int j = 0; j < N_TP; j++) { 
-	    pairvec[j] = gene[i * N_TP + j];
+	 for (int j = 0; j < NPARAMETERS; j++) { 
+	    pairvec[j] = gene[i * NPARAMETERS + j];
 	 }
 	 triplet_pair_from_vector(i, pairvec, Bz);
 	 Amps[i] = pairvec[AMP];
       }
+   }
+
+   double gamma_from_gene(int pair_number, const double gene[]) { 
+       return gene[pair_number * NPARAMETERS + GAMMA];
    }
 
 
@@ -257,28 +270,25 @@ private:
       for (int n = 0; n < NPAIRS; n++) { 
 	 ODMR_Signal<TripletPair> odmr_from_triplets(triplets[n]);    
 	 odmr_from_triplets.update_from_spin_hamiltonian();
-	 odmr_from_triplets.gamma = gene[n * N_TP + GAMMA];
-	 odmr_from_triplets.gamma_diag = gene[n * N_TP + GAMMA];
+	 odmr_from_triplets.gamma = gamma_from_gene(n, gene);
+	 odmr_from_triplets.gamma_diag = gamma_from_gene(n, gene);
 
-	 if (use_chi1) { 
+	 if (rho0.size() == TripletPair::matrix_size) { 
+	    odmr_from_triplets.load_rho0(rho0);
+	 } else if (use_chi1) { 
 	    odmr_from_triplets.load_rho0_thermal(1000.0);
-	    for (int i = 0; i < NX; i++) { 
-	       double omega = data.dec_x(i);
-	       signal[i] += Amps[n] * imag(odmr_from_triplets.chi1(omega));
-	    }
 	 } else { 
 	    odmr_from_triplets.load_rho0_from_singlet();
-	    for (int i = 0; i < NX; i++) { 
-	       double omega = data.dec_x(i);
-	       //	    signal[i] += Amps[n] * imag(odmr_from_triplets.chi1(omega));
-	       signal[i] += Amps[n] * odmr_from_triplets.odmr(omega);
-	    }
+	 }
+
+	 for (int i = 0; i < NX; i++) { 
+	   double omega = data.dec_x(i);
+	   signal[i] += (use_chi1) ? Amps[n] * imag(odmr_from_triplets.chi1(omega)) : Amps[n] * odmr_from_triplets.odmr(omega);
 	 }
       }
    }
 
-public:
-   double score(const double gene[]) { 
+   virtual double score(const double gene[]) { 
       int NB = data.Ysize();
       int Nomega = data.Xsize();
 
@@ -307,8 +317,8 @@ public:
 	 }
 	 i++;
        }
-       if (i != N_TP * NPAIRS) { 
-	  std::cerr << "read_gene - incorrect read " << i << "  " << N_TP * NPAIRS << std::endl;
+       if (i != NPARAMETERS * NPAIRS) { 
+	  std::cerr << "read_gene - incorrect read " << i << "  " << NPARAMETERS * NPAIRS << std::endl;
        }
    }
 
@@ -354,17 +364,65 @@ public:
 };
 
 
-const int Triplet_Pair_From_Gene::NPAIRS = 1;
+class Triplet_Pair_From_Population : public Triplet_Pair_From_Gene { 
+public : 
+   enum { NVARS = TripletPair::matrix_size + 1 };
+   enum { AMP = TripletPair::matrix_size };
+   double gene0[Triplet_Pair_From_Gene::NVARS];
 
-static const int NVARS = Triplet_Pair_From_Gene::N_TP * Triplet_Pair_From_Gene::NPAIRS;
+   Triplet_Pair_From_Population(void)  { 
+      rho0.resize( TripletPair::matrix_size );
+      if ( Triplet_Pair_From_Gene::NPAIRS != 1) { 
+	 std::cerr << "# Triplet_Pair_From_Population designed for Triplet_Pair_From_Gene::NPAIRS = 1" << std::endl;
+      }
 
-struct genotype
+   }
+
+   void read_gene(const char *filename) {  
+      Triplet_Pair_From_Gene::read_gene(filename, gene0);
+   }
+
+   void print_info(void) { 
+      Triplet_Pair_From_Gene::print_info();
+      std::cout << "# gene0 = [ " << std::endl;
+      for (int i = 0; i < Triplet_Pair_From_Gene::NVARS; i++) { 
+	std::cout << "#   " << gene0[i] << std::endl;	
+      }
+      std::cout << "# ] " << std::endl;
+   }
+
+
+   double upper(int i) { 
+      if (i < AMP) return 1.0;
+      else if (i == AMP) return Triplet_Pair_From_Gene::upper( Triplet_Pair_From_Gene::AMP );
+   }
+
+   double lower(int i) { 
+      if (i < AMP) return 0.0;
+      else if (i == AMP) return Triplet_Pair_From_Gene::lower( Triplet_Pair_From_Gene::AMP );
+   }
+
+   double score(const double gene[]) { 
+      for (int i = 0; i < AMP; i++) { 
+	 rho0[i] = gene[i];
+      }      
+      gene0[Triplet_Pair_From_Gene::AMP] = gene[AMP];
+      return Triplet_Pair_From_Gene::score(gene0);
+
+   }   
+
+};
+
+
+
+
+template <class fitness_finder> struct genotype
 {
-  double gene[NVARS];
+  double gene[fitness_finder::NVARS];
   double score;
   double fitness;
-  double upper[NVARS];
-  double lower[NVARS];
+  double upper[fitness_finder::NVARS];
+  double lower[fitness_finder::NVARS];
   double rfitness;
   double cfitness;
 };
@@ -381,10 +439,10 @@ struct genotype
 //    ISBN: 3-540-60676-9,
 //    LC: QA76.618.M53.
 //
-static const int POPSIZE = 30;
 
 template <class fitness_finder> class simple_GA { 
    fitness_finder &ffinder;
+   std::vector<fitness_finder> ffinder_list;
     
    int int_uniform_ab ( int a, int b ) { 
       return a + (rand() % (b - a + 1));
@@ -396,7 +454,7 @@ template <class fitness_finder> class simple_GA {
 
    void Xover ( int one, int two ) {
       //  Select the crossover point.
-      int point = int_uniform_ab ( 0, NVARS - 1 );
+      int point = int_uniform_ab ( 0, fitness_finder::NVARS - 1 );
       //  Swap genes in positions 0 through POINT-1.
       for (int i = 0; i < point; i++ ) {
 	 double t = population[one].gene[i];
@@ -406,7 +464,7 @@ template <class fitness_finder> class simple_GA {
    }
 
    void copy_gene(int from, int to) { 
-      for (int i = 0; i < NVARS; i++ ) {
+      for (int i = 0; i < fitness_finder::NVARS; i++ ) {
         population[to].gene[i] = population[from].gene[i];
       }
       population[to].score = population[from].score;
@@ -414,15 +472,22 @@ template <class fitness_finder> class simple_GA {
    }
 
 public : 
+   enum { POPSIZE = 32 };
+
+
    double PXOVER = 0.8;
    double PMUTATION = 0.1;
-   struct genotype population[POPSIZE+1];
-   struct genotype newpopulation[POPSIZE+1]; 
+   struct genotype<fitness_finder> population[POPSIZE+1];
+   struct genotype<fitness_finder> newpopulation[POPSIZE+1]; 
    double temp;
 
    simple_GA(fitness_finder &f) : ffinder(f) {
       PXOVER = 0.8;
       PMUTATION = 0.1;
+      ffinder_list.reserve(POPSIZE);
+      for (int i = 0; i < POPSIZE; i++) { 
+	ffinder_list.push_back( f );
+      }
    }
 
    void crossover (void) {
@@ -459,34 +524,37 @@ public :
      int i;
      double best, worst;
      int best_mem, worst_mem;
-     
-     best = worst = population[0].fitness;
+//
+//
+// elitist based on scores and not fitness since scores are temperature independent. 
+//   
+     best = worst = population[0].score;
      best_mem = worst_mem = 0;
 
      for (i = 0; i < POPSIZE - 1; ++i) {
-        if ( population[i+1].fitness < population[i].fitness ) {
-	   if ( best <= population[i].fitness ) {
-	      best = population[i].fitness;
+        if ( population[i+1].score < population[i].score ) {
+	   if ( best <= population[i].score ) {
+	      best = population[i].score;
 	      best_mem = i;
 	   }
 	   
-	   if ( population[i+1].fitness <= worst ) {
-	      worst = population[i+1].fitness;
+	   if ( population[i+1].score <= worst ) {
+	      worst = population[i+1].score;
 	      worst_mem = i + 1;
 	   }
 	} else {
-	  if ( population[i].fitness <= worst ) {
-	     worst = population[i].fitness;
+	  if ( population[i].score <= worst ) {
+	     worst = population[i].score;
 	     worst_mem = i;
 	  }
-	  if ( best <= population[i+1].fitness ) {
-	     best = population[i+1].fitness;
+	  if ( best <= population[i+1].score ) {
+	     best = population[i+1].score;
 	     best_mem = i + 1;
 	  }
 	}
      }
 
-     if ( population[POPSIZE].fitness <= best ) {
+     if ( population[POPSIZE].score <= best ) {
         copy_gene(best_mem, POPSIZE); 
      } else {
         copy_gene(POPSIZE, worst_mem);
@@ -499,7 +567,7 @@ public :
       // not now 
       #pragma omp parallel for // num_threads(4)
       for (int member = 0; member < POPSIZE; member++ ) { 
-	 population[member].score = ffinder.score(population[member].gene);
+	 population[member].score = ffinder_list[member].score(population[member].gene);	 
       }
       double avscore = 0.0;
       for (int member = 0; member < POPSIZE; member++ ) { 
@@ -509,8 +577,8 @@ public :
 	// towards minimum
 	// 	 population[member].fitness = exp ( -(population[member].score - avscore)/temp );
 	// towards maximum
-	//	population[member].fitness = exp ( (population[member].score - avscore)/temp );
-	 population[member].fitness = population[member].score;
+	population[member].fitness = exp ( (population[member].score - avscore)/temp );
+	//	 population[member].fitness = population[member].score;
       }
    }
 
@@ -541,7 +609,7 @@ public :
 	 population[j].score = 0;	
 	 population[j].rfitness = 0;
 	 population[j].cfitness = 0;
-         for (int i = 0; i < NVARS; i++ ) {
+         for (int i = 0; i < fitness_finder::NVARS; i++ ) {
 	    population[j].lower[i] = ffinder.lower(i);
 	    population[j].upper[i] = ffinder.upper(i);
 	    population[j].gene[i] = real_uniform_ab (population[j].lower[i], population[j].upper[i]); 
@@ -550,9 +618,11 @@ public :
    }  
 
    void initial_values(int num, const double *gene) { 
-      for (int i = 0; i < NVARS; i++ ) {
-	 population[num].gene[i] = gene[i];
+      std::cout << "# setting initial_value for gene " << num << std::endl;
+      for (int i = 0; i < fitness_finder::NVARS; i++ ) {
+         population[num].gene[i] = gene[i];
       }
+      std::cout << "# with initial score " << ffinder.score(population[num].gene) << std::endl;
    }
 
    void keep_the_best (void) { 
@@ -584,7 +654,7 @@ public :
       double x;
 
       for (int i = 0; i < POPSIZE; i++ ) {
-	 for (int j = 0; j < NVARS; j++ ) {
+	 for (int j = 0; j < fitness_finder::NVARS; j++ ) {
 	    x = real_uniform_ab (a, b);
 	    if ( x < PMUTATION ) {	      
 	       lbound = population[i].lower[j];
@@ -604,7 +674,7 @@ public :
       double x;
 
       for (int i = 0; i < POPSIZE; i++ ) {
-	 for (int j = 0; j < NVARS; j++ ) {
+	 for (int j = 0; j < fitness_finder::NVARS; j++ ) {
 	    x = real_uniform_ab (a, b);
 	    if ( x < PMUTATION ) {	      
 	       lbound = std::max(population[i].lower[j], population[i].gene[j] - amplitude);
@@ -716,7 +786,7 @@ public :
 
    void print_info(void) { 
       std::cout << "# POPSIXE " << POPSIZE << std::endl;
-      std::cout << "# NVARS " << NVARS << std::endl;
+      std::cout << "# NVARS " << fitness_finder::NVARS << std::endl;
       std::cout << "# PXOVER " << PXOVER << std::endl;
       std::cout << "# PMUTATION " << PMUTATION << std::endl;
       std::cout << "# temp " << temp << std::endl;
@@ -724,15 +794,14 @@ public :
 
    void print_best(int generation) { 
       std::cout << "# best gene = " << population[POPSIZE].fitness << "\n";
-      for (int i = 0; i < NVARS; i++ ) {
+      for (int i = 0; i < fitness_finder::NVARS; i++ ) {
          std::cout << generation << "   " << i << "    " << population[POPSIZE].gene[i] << "  %" << std::endl;
       }
       std::cout << "# with fitness = " << population[POPSIZE].fitness << "\n";
-      //      ffinder.print_gene(population[POPSIZE].gene);
    }
 };
 
-main()
+int main_ch1eq()
 {
     Triplet_Pair_From_Gene odmr;
     odmr.data.source_filename = "megaFreqPL12mVB161222.up";    
@@ -746,32 +815,101 @@ main()
 
     odmr.Dmax = 2000;
     odmr.Emax = odmr.Dmax/3.0;
-    odmr.Jmax = odmr.Dmax;
+    odmr.Jmax = 2000;
     odmr.Jdip_max = odmr.Dmax;
     odmr.Amp_max = 100.0;
     odmr.Gamma_max = 50.0;
     odmr.use_chi1 = true;
     odmr.print_info();
 
-    double gene0[NVARS];
-    odmr.read_gene("opt2.gene", gene0);
+    double gene0[Triplet_Pair_From_Gene::NVARS];
+    odmr.read_gene("optNoDip.gene", gene0);
+    std::cout << "# gene0 score " << odmr.score(gene0) << std::endl;
+    odmr.print_gene(gene0);
+    exit(0);
 
     simple_GA<Triplet_Pair_From_Gene> ga(odmr);
     ga.initialize();
-    ga.initial_values(0, gene0);
+    //    ga.initial_values(17, gene0);
+    ga.temp = 0.005;
+    double anneal_eps = 0.7e-4;
+    double temp_min = 0.0001;
+    std::cout << "# anneal_eps "  << anneal_eps << std::endl;
+    std::cout << "# temp_min "  << temp_min << std::endl;
+        
     ga.print_info();
     ga.evaluate ();
-    std::cout << "# ga evaluate "  << std::endl;
     ga.report(-1);
     ga.keep_the_best();
 
     int MAXGENS = 100000;
+    
 
     for (int generation = 0; generation < MAXGENS; generation++ ) {
-      //       ga.temp *= (1.0 - anneal_eps);
-      //       if (ga.temp < temp_min) ga.temp = temp_min;
-      //       tex.nav *= (1.0 + anneal_eps);
-      //       if (tex.nav > nav_max) { tex.nav = nav_max; }
+       ga.temp *= (1.0 - anneal_eps);
+       if (ga.temp < temp_min) ga.temp = temp_min;
+
+       ga.selector ();
+       ga.crossover ();
+       ga.mutate ();
+       ga.report(generation);
+       ga.evaluate ();
+       ga.elitist();
+       if (!(generation % 20)) {
+	  ga.print_best(generation);	  
+       }
+    }
+    ga.print_best(MAXGENS);
+    
+}
+
+
+
+
+int main()
+{
+    Triplet_Pair_From_Population odmr;
+    odmr.data.source_filename = "megaFreqPL12mVB161222.up";    
+    odmr.data.load_parameters();
+    odmr.data.Ymin = -100;
+    odmr.data.Ymax = 40;
+    //    odmr.data.Xmin = 800;
+    //    odmr.data.Xmax = 1500;
+    odmr.data.load_matrix(true);
+    odmr.data.print_info();
+
+    odmr.Dmax = 2000;
+    odmr.Emax = odmr.Dmax/3.0;
+    odmr.Jmax = 2000;
+    odmr.Jdip_max = odmr.Dmax;
+    odmr.Amp_max = 300.0;
+    odmr.Gamma_max = 50.0;
+    odmr.use_chi1 = false;
+    odmr.read_gene("opt2.gene");
+    odmr.print_info();
+
+
+    simple_GA<Triplet_Pair_From_Population> ga(odmr);
+    ga.initialize();
+    //    ga.initial_values(17, gene0);
+    ga.temp = 0.005;
+    double anneal_eps = 0.7e-4;
+    double temp_min = 0.0001;
+    std::cout << "# anneal_eps "  << anneal_eps << std::endl;
+    std::cout << "# temp_min "  << temp_min << std::endl;
+        
+    ga.print_info();
+    ga.evaluate ();
+    ga.report(-1);
+    ga.keep_the_best();
+
+    int MAXGENS = 100000;
+    
+
+    for (int generation = 0; generation < MAXGENS; generation++ ) {
+       ga.temp *= (1.0 - anneal_eps);
+       if (ga.temp < temp_min) ga.temp = temp_min;
+
        ga.selector ();
        ga.crossover ();
        ga.mutate ();

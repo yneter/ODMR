@@ -640,6 +640,15 @@ public :
        rho0 /= t;
     }    
 
+    void load_rho0(const std::vector<double> &values) { 
+       for (int i = 0; i < spins.matrix_size ; i++) { 
+	  rho0(i) = values[i];
+       }
+       double t = rho0.sum();
+       rho0 /= t;
+    }    
+
+
     complexg chi1(double omega) { 
        complexg c1 = 0.0;
        for (int m = 0; m < spins.matrix_size ; m++) { 
