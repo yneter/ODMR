@@ -275,6 +275,47 @@ public:
 typedef GenericSpin<PauliTripletMatrices> TripletSpin;
 typedef GenericSpin<PauliMatrices> SpinHalf;
 
+template <class Spin1> class SingleSpin { 
+public:
+    Spin1 S;
+    typedef Matrix<complexg, Spin1::matrix_size, Spin1::matrix_size> SpinMatrix;
+    typedef Matrix<complexg, Spin1::matrix_size, 1> SpinVector;
+    typedef Matrix<double, Spin1::matrix_size, 1> SpinVectorReal;
+private : 
+    SpinMatrix Hfull; // Hamiltonian 
+public : 
+    SpinVectorReal eval;   // eigenvalues
+    SpinMatrix evec; // eigenvectors
+    enum { matrix_size = Spin1::matrix_size };
+
+    SingleSpin(void) : S()
+    { 
+    }
+
+    SpinMatrix update_hamiltonian(void) { 
+       Hfull = S.update_hamiltonian();
+       return Hfull;
+    }
+
+    SpinMatrix hamiltonian(void) const { 
+       return Hfull;
+    }
+
+    void diag(void) { 
+       SelfAdjointEigenSolver<SpinMatrix> eigensolver(Hfull);
+       if (eigensolver.info() != Success) abort();
+       eval = eigensolver.eigenvalues();
+       evec = eigensolver.eigenvectors();
+    }
+
+    SpinMatrix Bac_field_basis_matrix(void) { 
+       return S.Sx;
+    }
+
+};
+
+
+
 template <class Spin1, class Spin2> class SpinPair { 
 public: 
     Spin1 S1;
@@ -526,9 +567,8 @@ public :
 };
 
 
-
-
-
+class SingleTriplet : public SingleSpin<TripletSpin> { 
+};
 
 
 class TripletPair : public SpinPair<TripletSpin, TripletSpin> {
@@ -583,41 +623,36 @@ const TripletPair::SpinMatrix TripletPair::Jproj (
 						    );
 
 /*
- * ODMR_Signal
+ * ESR_Signal
  *
- * Output : Computes ODMR and magnetic resonance signals 
+ * Output : Computes ESR signal
  *
  * Input : spins, a reference on SpinSystem object
  * SpinSystem should define 
  * spins.matrix_size
  * spins.evec
  * spins.eval
- * spins.singlet_projector()
  * spins.Bac_field_basis_matrix()
  */ 
-
-template <class SpinSystem> class ODMR_Signal { 
+template <class SpinSystem> class ESR_Signal { 
+protected:
     typedef Matrix<double, SpinSystem::matrix_size, 1> SpinVectord;
     typedef Matrix<complexg, SpinSystem::matrix_size, SpinSystem::matrix_size> SpinMatrixcd;
 
     SpinVectord rho0;
-    SpinMatrixcd rho2;
-    SpinMatrixcd Sproj_eig_basis;
-    SpinMatrixcd V;
+    SpinMatrixcd Vx;
     SpinSystem &spins;
-
-public : 
+public :
     double gamma;
     double gamma_diag;
 
 
-    ODMR_Signal(SpinSystem &spin_system) : spins(spin_system) {
+    ESR_Signal(SpinSystem &spin_system) : spins(spin_system){
 
     }
 
     void update_from_spin_hamiltonian(void) { 
-        Sproj_eig_basis = spins.evec.adjoint() * spins.singlet_projector() * spins.evec;
-	V = spins.evec.adjoint() * spins.Bac_field_basis_matrix() * spins.evec; 
+	Vx = spins.evec.adjoint() * spins.Bac_field_basis_matrix() * spins.evec; 
     }
 
     double omega_nm(int n, int m) { 
@@ -631,14 +666,6 @@ public :
        double t = rho0.sum();
        rho0 /= t;
     }
-
-    void load_rho0_from_singlet(void) { 
-       for (int i = 0; i < spins.matrix_size ; i++) { 
-	  rho0(i) = real(Sproj_eig_basis(i, i));
-       }
-       double t = rho0.sum();
-       rho0 /= t;
-    }    
 
     void load_rho0(const std::vector<double> &values) { 
        for (int i = 0; i < spins.matrix_size ; i++) { 
@@ -657,29 +684,69 @@ public :
 	     // the contribution to chi1 vanishes for n == m, whether gamma is the same for diagonal and non diagonal elements is not relvant here 
 	     // 
 	     // cerr << n << "    " << m << "    " << abs(V(m, n)) << endl;
-	     c1 -= (rho0(m) - rho0(n)) * norm(V(n, m)) / ( omega_nm(n, m) - omega - iii * gamma );
+	     c1 -= (rho0(m) - rho0(n)) * norm(Vx(n, m)) / ( omega_nm(n, m) - omega - iii * gamma );
 	  }
        }
        return c1;
     }    
 
+};
+
+
+/*
+ * ODMR_Signal
+ *
+ * Output : Computes ODMR signal
+ *
+ * Input : spins, a reference on SpinSystem object
+ * SpinSystem should define 
+ * for base class ESR_Signal
+ * spins.matrix_size
+ * spins.evec
+ * spins.eval
+ * spins.Bac_field_basis_matrix()
+ * and for ODMR signal 
+ * spins.singlet_projector()
+ */ 
+template <class SpinSystem> class ODMR_Signal : public ESR_Signal<SpinSystem> { 
+    typedef Matrix<double, SpinSystem::matrix_size, 1> SpinVectord;
+    typedef Matrix<complexg, SpinSystem::matrix_size, SpinSystem::matrix_size> SpinMatrixcd;
+    SpinMatrixcd rho2;
+    SpinMatrixcd Sproj_eig_basis;
+public :
+    ODMR_Signal(SpinSystem &spin_system): ESR_Signal<SpinSystem>(spin_system) { 
+
+    }
+
+    void load_rho0_from_singlet(void) { 
+       for (int i = 0; i < this->spins.matrix_size ; i++) { 
+	  this->rho0(i) = real(Sproj_eig_basis(i, i));
+       }
+       double t = this->rho0.sum();
+       this->rho0 /= t;
+    }    
+
+    void update_from_spin_hamiltonian(void) { 
+        Sproj_eig_basis = this->spins.evec.adjoint() * this->spins.singlet_projector() * this->spins.evec;
+	this->ESR_Signal<SpinSystem>::update_from_spin_hamiltonian();
+    }
 
     // explicit calculation of rho2 - close to analytical formula but slow
     void find_rho2_explicit(double omega) { 
-       for (int m = 0; m < spins.matrix_size ; m++) { 
-	  for (int n = 0; n < spins.matrix_size ; n++) { 
+       for (int m = 0; m < this->spins.matrix_size ; m++) { 
+	  for (int n = 0; n < this->spins.matrix_size ; n++) { 
 	     complexg rrr = 0.0;
-	     for (int nu = 0; nu < spins.matrix_size ; nu++) { 
+	     for (int nu = 0; nu < this->spins.matrix_size ; nu++) { 
 	        for (int p = -1; p <= 1; p += 2) { 
 		  // Vtmp(nu, m) = (rho0(m) - rho0(nu)) * V(nu, m) / ( omega_nm(nu, m) - omega * (double) p - iii * gamma )
-		   rrr += V(n, nu) * (rho0(m) - rho0(nu)) * V(nu, m) / ( omega_nm(nu, m) - omega * (double) p - iii * gamma );
+		   rrr += this->Vx(n, nu) * (this->rho0(m) - this->rho0(nu)) * this->Vx(nu, m) / ( this->omega_nm(nu, m) - omega * (double) p - iii * this->gamma );
 		  //  nu->n and m->nu : Vtmp(n, nu)  
-		   rrr -= ((rho0(nu) - rho0(n)) * V(n, nu) / ( omega_nm(n, nu) - omega * (double) p - iii * gamma )) * V(nu, m);
+		   rrr -= ((this->rho0(nu) - this->rho0(n)) * this->Vx(n, nu) / ( this->omega_nm(n, nu) - omega * (double) p - iii * this->gamma )) * this->Vx(nu, m);
 		}
 	     }
 	     // relaxation may be different for diaganonal and non diagonal terms
-	     double gamma_nm = (n == m) ? gamma_diag : gamma;
-	     rho2(n, m) = rrr / ( omega_nm(n, m) - iii * gamma_nm );
+	     double gamma_nm = (n == m) ? this->gamma_diag : this->gamma;
+	     rho2(n, m) = rrr / ( this->omega_nm(n, m) - iii * gamma_nm );
 	  }
        }
 
@@ -689,19 +756,19 @@ public :
     // optimized calculation of rho2
     void find_rho2(double omega) { 
        SpinMatrixcd Vtmp = SpinMatrixcd::Zero();
-       for (int m = 0; m < spins.matrix_size ; m++) { 
-	  for (int nu = 0; nu < spins.matrix_size ; nu++) { 
+       for (int m = 0; m < this->spins.matrix_size ; m++) { 
+	  for (int nu = 0; nu < this->spins.matrix_size ; nu++) { 
 	     for (int p = -1; p <= 1; p += 2) { 
-	        Vtmp(nu, m) += (rho0(m) - rho0(nu)) * V(nu, m) / (omega_nm(nu, m) - omega * (double) p - iii * gamma);
+	        Vtmp(nu, m) += (this->rho0(m) - this->rho0(nu)) * this->Vx(nu, m) / (this->omega_nm(nu, m) - omega * (double) p - iii * this->gamma);
 	     }
 	  }
        }      
-       rho2 = V * Vtmp - Vtmp * V;
-       for (int m = 0; m < spins.matrix_size ; m++) { 
-	  for (int n = 0; n < spins.matrix_size ; n++) { 
+       rho2 = this->Vx * Vtmp - Vtmp * this->Vx;
+       for (int m = 0; m < this->spins.matrix_size ; m++) { 
+	  for (int n = 0; n < this->spins.matrix_size ; n++) { 
 	     // relaxation may be different for diaganonal and non diagonal terms
-	     double gamma_nm = (n == m) ? gamma_diag : gamma;
-	     rho2(n, m) /= ( omega_nm(n, m) - iii * gamma_nm );
+	     double gamma_nm = (n == m) ? this->gamma_diag : this->gamma;
+	     rho2(n, m) /= ( this->omega_nm(n, m) - iii * gamma_nm );
 	  }
        }
     }
@@ -711,8 +778,8 @@ public :
        double odmr_amp = 0.0;
        find_rho2(omega);
        
-       for (int m = 0; m < spins.matrix_size ; m++) { 
-	  for (int n = 0; n < spins.matrix_size ; n++) { 
+       for (int m = 0; m < this->spins.matrix_size ; m++) { 
+	  for (int n = 0; n < this->spins.matrix_size ; n++) { 
 	     odmr_amp += real( rho2(m , n) * Sproj_eig_basis(n, m) );
 	  }
        }

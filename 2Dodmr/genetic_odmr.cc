@@ -14,7 +14,7 @@
 #include <Eigen/Dense>
 
 #define OPTIMIZE_DIPOLE_DIPOLE
-// #define OPTIMIZE_POPULATION
+// #define OPTIMIZE_EXCHANGE
 
 #include "odmr_triplets.cc"
 
@@ -153,9 +153,194 @@ public :
 
 
 
+class Triplet_From_Gene {
+public: 
+   enum TPenum { D, E, PHI, UZ, THETA, TEMP, AMP, GAMMA, NPARAMETERS } ;
+   enum { NTRIPLETS = 4 };
+   enum { NVARS = NTRIPLETS * NPARAMETERS };
+
+   std::vector<SingleTriplet> triplets;
+   std::vector<double> Amps;
+   std::vector<double> signal;
+   std::vector<double> rho0;
+
+   ODMR_Matrix data;
+   
+
+   double Dmax;
+   double Emax;
+   double Tmax;
+   double Amp_max;
+   double Gamma_max;
+
+   Triplet_From_Gene(void) : triplets(NTRIPLETS), Amps(NTRIPLETS) { 
+   }
+
+   void triplet_from_vector(int index, const std::vector<double> &pairvec, double Bz)
+   {
+       triplets[index].S.D = pairvec[D];
+       triplets[index].S.E = pairvec[E];
+       triplets[index].S.rot.angle_phi_uz(pairvec[THETA], pairvec[PHI], pairvec[UZ]);
+       triplets[index].S.B << 0, 0, Bz;
+       triplets[index].update_hamiltonian();
+       triplets[index].diag(); 
+   }
+
+
+   double upper(int i) { 
+      TPenum index = static_cast<TPenum>(i % NPARAMETERS);
+      switch (index) {
+         case D: 
+	    return Dmax;
+         case E:
+	    return Emax;
+         case UZ: 
+	    return 1.0;
+         case PHI: case THETA: 
+	    return M_PI;
+         case TEMP:
+  	    return Tmax;
+         case AMP:
+  	    return Amp_max;
+         case GAMMA:
+	    return Gamma_max;
+         default:
+	    throw "case error: should not occur";
+      }
+   }
+
+   double lower(int i) { 
+      if (i == GAMMA) { return 0.0; } 
+      else { return -upper(i); }
+   }
+
+   void update_triplets_from_gene_at_Bz(const double gene[], double Bz) { 
+      std::vector<double> pairvec(NPARAMETERS);
+      for (int i = 0; i < NTRIPLETS; i++) { 
+	 for (int j = 0; j < NPARAMETERS; j++) { 
+	    pairvec[j] = gene[i * NPARAMETERS + j];
+	 }
+	 triplet_from_vector(i, pairvec, Bz);
+	 Amps[i] = pairvec[AMP];
+      }
+   }
+
+   double gamma_from_gene(int pair_number, const double gene[]) { 
+       return gene[pair_number * NPARAMETERS + GAMMA];
+   }
+
+
+   void comp_signal_for_omega(const double gene[]) {
+      int NX = data.Xsize();
+      signal.resize(data.Xsize());
+      for (int i = 0; i < NX; i++) signal[i] = 0.0;
+
+      for (int n = 0; n < NTRIPLETS; n++) { 
+	 ESR_Signal<SingleTriplet> esr_from_triplets(triplets[n]);    
+	 esr_from_triplets.update_from_spin_hamiltonian();
+	 esr_from_triplets.gamma = gamma_from_gene(n, gene);
+	 esr_from_triplets.gamma_diag = gamma_from_gene(n, gene);
+
+	 if (rho0.size() == TripletPair::matrix_size) { 
+	    esr_from_triplets.load_rho0(rho0);
+	 } else { 
+	   //	    odmr_from_triplets.load_rho0_thermal(1000.0);
+	    esr_from_triplets.load_rho0_thermal(10000.0);
+	 } 
+	 for (int i = 0; i < NX; i++) { 
+	   double omega = data.dec_x(i);
+	   signal[i] += Amps[n] * imag(esr_from_triplets.chi1(omega));
+	 }
+      }
+   }
+
+   virtual double score(const double gene[]) { 
+      int NB = data.Ysize();
+      int Nomega = data.Xsize();
+
+      double gene_score = 0.0;
+      for (int b = 0; b < NB; b++) { 
+	 double Bz = data.dec_y(b);
+	 update_triplets_from_gene_at_Bz(gene, Bz);
+	 comp_signal_for_omega(gene);
+	 for (int w = 0; w < Nomega; w++) { 
+	    gene_score += fabs( data.odmr(w, b) - signal[w] );
+	 }
+      }
+      return 1.0 / gene_score;
+   }
+
+    void read_gene(const char *filename, double gene[], int nparameters) {  
+       std::ifstream infile(filename);    
+       std::string line;
+
+       int i = 0;
+       while (std::getline(infile, line)) {  
+	 std::istringstream iss(line);
+	 double niter,index,val;
+	 if ((iss >> niter >> index >> val)) { 
+	    gene[i] = val;
+	 }
+	 i++;
+       }
+       if (i != nparameters) { 
+	  std::cerr << "read_gene - incorrect read " << i << "  " << nparameters << std::endl;
+       }
+   }
+
+   void read_gene(const char *filename, double gene[]) { 
+      read_gene(filename, gene, NPARAMETERS * NTRIPLETS); 
+   }
+
+   void print_triplet_parameters(void) { 
+      for (int i = 0; i < NTRIPLETS; i++) { 
+	 std::cout << "# D " << triplets[i].S.D << std::endl;
+	 std::cout << "# E " << triplets[i].S.E << std::endl;
+	 std::cout << "# B " << triplets[i].S.B << std::endl;
+	 std::cout << "# M " << triplets[i].S.rot.matrix()  << std::endl;
+      }
+  }
+
+
+   void print_gene(const double gene[]) { 
+      int NB = data.Ysize();
+      int Nomega = data.Xsize();
+
+      for (int b = 0; b < NB; b++) { 
+	 double Bz = data.dec_y(b);	
+	 update_triplets_from_gene_at_Bz(gene, Bz);
+	 if (!b) { 
+	    print_triplet_parameters();      
+	 }
+
+	 comp_signal_for_omega(gene);
+	 for (int w = 0; w < Nomega; w++) { 
+	    double omega = data.dec_x(w);
+	    std::cout << omega << "   " << Bz << "   " <<  data.odmr(w, b) << "   " << signal[w] << std::endl;
+	 }
+	 std::cout << std::endl;
+      }
+   }
+
+   void print_info(void) { 
+     std::cout << "# Dmax " <<  Dmax << std::endl;
+     std::cout << "# Emax " <<  Emax << std::endl;
+     std::cout << "# Amp_max " <<  Amp_max << std::endl;
+     std::cout << "# Tmax " <<  Tmax << std::endl;
+     std::cout << "# Gamma_max " <<  Gamma_max << std::endl;
+     std::cout << "# NTRIPLETS " << NTRIPLETS << std::endl;
+   }
+};
+
+
+
+
 class Triplet_Pair_From_Gene {
 public: 
-   enum TPenum { D1, D2, E1, E2, NJ, 
+   enum TPenum { D1, D2, E1, E2, 
+#ifdef OPTIMIZE_EXCHANGE
+		 NJ, 
+#endif
 #ifdef OPTIMIZE_DIPOLE_DIPOLE
 		 JDIP, PHI12, UZ12, 
 #endif
@@ -178,10 +363,11 @@ public:
    double Amp_max;
    double Gamma_max;
    bool use_chi1;
-
+   bool rescale;
 
    Triplet_Pair_From_Gene(void) : triplets(NPAIRS), Amps(NPAIRS) { 
       use_chi1 = true;
+      rescale = true;
    }
 
    void triplet_pair_from_vector(int index, const std::vector<double> &pairvec, double Bz)
@@ -190,8 +376,11 @@ public:
       triplets[index].S2.D = pairvec[D2];
       triplets[index].S1.E = pairvec[E1];
       triplets[index].S2.E = pairvec[E2];
+#ifdef OPTIMIZE_EXCHANGE
       triplets[index].J = pairvec[NJ];
-      
+#else
+      triplets[index].J = Jmax;
+#endif
 #ifdef OPTIMIZE_DIPOLE_DIPOLE
       triplets[index].Jdip = pairvec[JDIP];      
       double phi = pairvec[PHI12];
@@ -218,8 +407,10 @@ public:
          case E1:
          case E2: 
 	    return Emax;
+#ifdef OPTIMIZE_EXCHANGE
          case NJ:
 	    return Jmax;
+#endif
 #ifdef OPTIMIZE_DIPOLE_DIPOLE
          case JDIP: 	
 	    return Jdip_max;
@@ -276,7 +467,8 @@ public:
 	 if (rho0.size() == TripletPair::matrix_size) { 
 	    odmr_from_triplets.load_rho0(rho0);
 	 } else if (use_chi1) { 
-	    odmr_from_triplets.load_rho0_thermal(1000.0);
+	   //	    odmr_from_triplets.load_rho0_thermal(1000.0);
+	    odmr_from_triplets.load_rho0_thermal(10000.0);
 	 } else { 
 	    odmr_from_triplets.load_rho0_from_singlet();
 	 }
@@ -304,7 +496,7 @@ public:
       return 1.0 / gene_score;
    }
 
-   void read_gene(const char *filename, double gene[]) {  
+    void read_gene(const char *filename, double gene[], int nparameters) {  
        std::ifstream infile(filename);    
        std::string line;
 
@@ -317,10 +509,26 @@ public:
 	 }
 	 i++;
        }
-       if (i != NPARAMETERS * NPAIRS) { 
-	  std::cerr << "read_gene - incorrect read " << i << "  " << NPARAMETERS * NPAIRS << std::endl;
+       if (i != nparameters) { 
+	  std::cerr << "read_gene - incorrect read " << i << "  " << nparameters << std::endl;
        }
    }
+
+   void read_gene(const char *filename, double gene[]) { 
+      read_gene(filename, gene, NPARAMETERS * NPAIRS); 
+   }
+
+   void print_triplet_parameters(void) { 
+      std::cout << "# Ds " << triplets[0].S1.D << "   " << triplets[0].S2.D << std::endl;
+      std::cout << "# Es " << triplets[0].S1.E << "   " << triplets[0].S2.E << std::endl;
+      std::cout << "# B " << triplets[0].S1.B << "   " << triplets[0].S2.B << std::endl;
+      std::cout << "# M1 " << triplets[0].S1.rot.matrix()  << std::endl;
+      std::cout << "# M2 " << triplets[0].S2.rot.matrix()  << std::endl;
+      std::cout << "# J " << triplets[0].J << std::endl;
+      std::cout << "# Jdip " << triplets[0].Jdip << std::endl;
+      std::cout << "# r12 " << triplets[0].r12 << std::endl;            
+  }
+
 
    void print_gene(const double gene[]) { 
       int NB = data.Ysize();
@@ -329,15 +537,10 @@ public:
       for (int b = 0; b < NB; b++) { 
 	 double Bz = data.dec_y(b);	
 	 update_triplets_from_gene_at_Bz(gene, Bz);
-	 std::cout << "# Bz " << Bz << std::endl;
-	 std::cout << "# Ds " << triplets[0].S1.D << "   " << triplets[0].S2.D << std::endl;
-	 std::cout << "# Es " << triplets[0].S1.E << "   " << triplets[0].S2.E << std::endl;
-	 std::cout << "# B " << triplets[0].S1.B << "   " << triplets[0].S2.B << std::endl;
-	 std::cout << "# M1 " << triplets[0].S1.rot.matrix()  << std::endl;
-	 std::cout << "# M2 " << triplets[0].S2.rot.matrix()  << std::endl;
-	 std::cout << "# J " << triplets[0].J << std::endl;
-	 std::cout << "# Jdip " << triplets[0].Jdip << std::endl;
-	 std::cout << "# r12 " << triplets[0].r12 << std::endl;
+	 if (!b) { 
+	    print_triplet_parameters();      
+	 }
+
 	 comp_signal_for_omega(gene);
 	 for (int w = 0; w < Nomega; w++) { 
 	    double omega = data.dec_x(w);
@@ -350,7 +553,11 @@ public:
    void print_info(void) { 
      std::cout << "# Dmax " <<  Dmax << std::endl;
      std::cout << "# Emax " <<  Emax << std::endl;
+#ifdef OPTIMIZE_EXCHANGE
      std::cout << "# Jmax " <<  Jmax << std::endl;
+#else
+     std::cout << "# J (exchange) fixed to " <<  Jmax << std::endl;
+#endif
      std::cout << "# use_chi1 instead of odmr " << use_chi1 << std::endl;
 #ifdef OPTIMIZE_DIPOLE_DIPOLE
      std::cout << "# Jdip_max " <<  Jdip_max << std::endl;
@@ -364,7 +571,7 @@ public:
 };
 
 
-class Triplet_Pair_From_Population : public Triplet_Pair_From_Gene { 
+struct Triplet_Pair_From_Population : Triplet_Pair_From_Gene { 
 public : 
    enum { NVARS = TripletPair::matrix_size + 1 };
    enum { AMP = TripletPair::matrix_size };
@@ -378,9 +585,15 @@ public :
 
    }
 
-   void read_gene(const char *filename) {  
+   void read_triplets(const char *filename) {  
       Triplet_Pair_From_Gene::read_gene(filename, gene0);
    }
+
+   void read_population(const char *filename, double gene[]) {  
+      Triplet_Pair_From_Gene::read_gene(filename, gene, NVARS);
+   }
+
+
 
    void print_info(void) { 
       Triplet_Pair_From_Gene::print_info();
@@ -411,6 +624,13 @@ public :
 
    }   
 
+   void print_gene(const double gene[]) { 
+      for (int i = 0; i < AMP; i++) { 
+	 rho0[i] = gene[i];
+      }      
+      gene0[Triplet_Pair_From_Gene::AMP] = gene[AMP];
+      Triplet_Pair_From_Gene::print_gene(gene0);
+   }
 };
 
 
@@ -581,27 +801,6 @@ public :
 	//	 population[member].fitness = population[member].score;
       }
    }
-
-  /**
-   void initialize (const double *init = NULL) {
-      for (int j = 0; j <= POPSIZE; j++ ) {
-         for (int i = 0; i < NVARS; i++ ) {
-	    population[j].fitness = 0;	
-	    population[j].score = 0;	
-	    population[j].rfitness = 0;
-	    population[j].cfitness = 0;
-	    population[j].lower[i] = ffinder.lower(i);
-	    population[j].upper[i] = ffinder.upper(i);
-	    if (init == NULL) { 
-	       if (j) { population[j].gene[i] = real_uniform_ab (population[j].lower[i], population[j].upper[i]); }
-	       else { population[j].gene[i] = (population[j].lower[i] + population[j].upper[i]) / 2.0; }	      
-	    } else { 
-	       population[j].gene[i] = init[i];
-	    }
-	 }
-      }
-   }  
-  **/
 
    void initialize (void) {
       for (int j = 0; j <= POPSIZE; j++ ) {
@@ -784,6 +983,14 @@ public :
       return;     
    }
 
+   void step(void) { 
+       selector();
+       crossover();
+       mutate();
+       evaluate();
+       elitist();
+   }
+
    void print_info(void) { 
       std::cout << "# POPSIXE " << POPSIZE << std::endl;
       std::cout << "# NVARS " << fitness_finder::NVARS << std::endl;
@@ -801,6 +1008,62 @@ public :
    }
 };
 
+int main()
+{
+    Triplet_From_Gene esr;
+    esr.data.source_filename = "megaFreqPL12mVB161222.up";    
+    esr.data.load_parameters();
+    esr.data.Ymin = -100;
+    esr.data.Ymax = 40;
+    //    esr.data.Xmin = 800;
+    //    esr.data.Xmax = 1500;
+    esr.data.load_matrix();
+    esr.data.print_info();
+
+    esr.Dmax = 2000;
+    esr.Emax = esr.Dmax/3.0;
+    esr.Amp_max = 100.0;
+    esr.Gamma_max = 50.0;
+    esr.Tmax = 2000.0;
+    esr.print_info();
+
+    simple_GA<Triplet_From_Gene> ga(esr);
+    ga.initialize();
+    ga.temp = 0.005;
+    double anneal_eps = 0.7e-4;
+    double temp_min = 0.0001;
+    std::cout << "# anneal_eps "  << anneal_eps << std::endl;
+    std::cout << "# temp_min "  << temp_min << std::endl;
+
+    double gene0[Triplet_From_Gene::NVARS];
+    esr.read_gene("opt4T.gene", gene0);
+    std::cout << "# gene0 score " << esr.score(gene0) << std::endl;
+    esr.print_gene(gene0);
+    exit(0);
+    ga.initial_values(0, gene0);
+        
+    ga.print_info();
+    ga.evaluate ();
+    ga.report(-1);
+    ga.keep_the_best();
+
+    int MAXGENS = 100000;
+    
+
+    for (int generation = 0; generation < MAXGENS; generation++ ) {
+       ga.temp *= (1.0 - anneal_eps);
+       if (ga.temp < temp_min) ga.temp = temp_min;
+       ga.step();
+       ga.report(generation);
+       if (!(generation % 20)) {
+	  ga.print_best(generation);	  
+       }
+    }
+    ga.print_best(MAXGENS);
+
+
+}
+
 int main_ch1eq()
 {
     Triplet_Pair_From_Gene odmr;
@@ -815,18 +1078,20 @@ int main_ch1eq()
 
     odmr.Dmax = 2000;
     odmr.Emax = odmr.Dmax/3.0;
-    odmr.Jmax = 2000;
+    odmr.Jmax = 10000;
     odmr.Jdip_max = odmr.Dmax;
     odmr.Amp_max = 100.0;
     odmr.Gamma_max = 50.0;
     odmr.use_chi1 = true;
     odmr.print_info();
 
+    /**
     double gene0[Triplet_Pair_From_Gene::NVARS];
     odmr.read_gene("optNoDip.gene", gene0);
     std::cout << "# gene0 score " << odmr.score(gene0) << std::endl;
     odmr.print_gene(gene0);
     exit(0);
+    **/
 
     simple_GA<Triplet_Pair_From_Gene> ga(odmr);
     ga.initialize();
@@ -848,13 +1113,8 @@ int main_ch1eq()
     for (int generation = 0; generation < MAXGENS; generation++ ) {
        ga.temp *= (1.0 - anneal_eps);
        if (ga.temp < temp_min) ga.temp = temp_min;
-
-       ga.selector ();
-       ga.crossover ();
-       ga.mutate ();
+       ga.step();
        ga.report(generation);
-       ga.evaluate ();
-       ga.elitist();
        if (!(generation % 20)) {
 	  ga.print_best(generation);	  
        }
@@ -866,7 +1126,7 @@ int main_ch1eq()
 
 
 
-int main()
+int main_pop()
 {
     Triplet_Pair_From_Population odmr;
     odmr.data.source_filename = "megaFreqPL12mVB161222.up";    
@@ -884,8 +1144,21 @@ int main()
     odmr.Jdip_max = odmr.Dmax;
     odmr.Amp_max = 300.0;
     odmr.Gamma_max = 50.0;
-    odmr.use_chi1 = false;
-    odmr.read_gene("opt2.gene");
+    odmr.use_chi1 = true;
+
+    odmr.read_triplets("opt2.gene");
+
+    double gene0[Triplet_Pair_From_Population::NVARS];
+    odmr.read_population("opt2Pop.gene", gene0);
+    for (int i = 0; i < Triplet_Pair_From_Population::NVARS; i++) { 
+      std::cerr << gene0[i] << std::endl;
+    }
+    std::cout << "# gene0 score " << odmr.score(gene0) << std::endl;
+    odmr.print_gene(gene0);
+    exit(0);
+
+
+
     odmr.print_info();
 
 
@@ -909,13 +1182,8 @@ int main()
     for (int generation = 0; generation < MAXGENS; generation++ ) {
        ga.temp *= (1.0 - anneal_eps);
        if (ga.temp < temp_min) ga.temp = temp_min;
-
-       ga.selector ();
-       ga.crossover ();
-       ga.mutate ();
+       ga.step();
        ga.report(generation);
-       ga.evaluate ();
-       ga.elitist();
        if (!(generation % 20)) {
 	  ga.print_best(generation);	  
        }
