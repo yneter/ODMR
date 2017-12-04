@@ -195,6 +195,41 @@ const PauliTripletMatrices::SpinMatrix PauliTripletMatrices::Sz ( ( (SpinMatrix(
 const PauliTripletMatrices::SpinMatrix PauliTripletMatrices::Id (  (SpinMatrix() = SpinMatrix::Identity()) );
 
 
+
+
+struct PauliQuintetMatrices { 
+    enum { matrix_size = 5 };
+    typedef Matrix<complexg, matrix_size, matrix_size>  SpinMatrix;
+    static const SpinMatrix Sx;
+    static const SpinMatrix Sy;
+    static const SpinMatrix Sz;
+    static const SpinMatrix Id;
+};
+const PauliQuintetMatrices::SpinMatrix PauliQuintetMatrices::Sx ( ( (SpinMatrix() << 
+								     0.0, 1.0, 0.0, 0.0, 0.0, 
+								     1.0, 0.0, sqrt(3.0/2.0), 0.0, 0.0,
+								     0.0, sqrt(3.0/2.0), 0.0, sqrt(3.0/2.0), 0.0, 
+								     0.0, 0.0, sqrt(3.0/2.0), 0.0, 1.0,
+								     0.0, 0.0, 0.0, 1.0, 0.0
+								     ).finished() ) );
+const PauliQuintetMatrices::SpinMatrix PauliQuintetMatrices::Sy ( ( (SpinMatrix() << 
+								     0.0, iii, 0.0, 0.0, 0.0, 
+								     -iii, 0.0, iii * sqrt(3.0/2.0), 0.0, 0.0,
+								     0.0, -iii * sqrt(3.0/2.0), 0.0, iii * sqrt(3.0/2.0), 0.0, 
+								     0.0, 0.0, -iii * sqrt(3.0/2.0), 0.0, iii,
+								     0.0, 0.0, 0.0, -iii, 0.0
+								     ).finished() ) );
+const PauliQuintetMatrices::SpinMatrix PauliQuintetMatrices::Sz ( ( (SpinMatrix() << 
+								     2.0, 0.0, 0.0, 0.0, 0.0, 
+								     0.0, 1.0, 0.0, 0.0, 0.0,
+								     0.0, 0.0, 0.0, 0.0, 0.0, 
+								     0.0, 0.0, 0.0, -1.0, 0.0,
+								     0.0, 0.0, 0.0, 0.0, -2.0
+								     ).finished() ) );
+const PauliQuintetMatrices::SpinMatrix PauliQuintetMatrices::Id (  (SpinMatrix() = SpinMatrix::Identity()) );
+
+
+
 struct PauliMatrices { 
     typedef Matrix2cd SpinMatrix;
     static const SpinMatrix Sx;
@@ -272,6 +307,7 @@ public:
 };
 
 
+typedef GenericSpin<PauliQuintetMatrices> QuintetSpin;
 typedef GenericSpin<PauliTripletMatrices> TripletSpin;
 typedef GenericSpin<PauliMatrices> SpinHalf;
 
@@ -570,6 +606,9 @@ public :
 class SingleTriplet : public SingleSpin<TripletSpin> { 
 };
 
+class SingleQuintet : public SingleSpin<QuintetSpin> { 
+};
+
 
 class TripletPair : public SpinPair<TripletSpin, TripletSpin> {
 private: 
@@ -635,14 +674,14 @@ const TripletPair::SpinMatrix TripletPair::Jproj (
  * spins.Bac_field_basis_matrix()
  */ 
 template <class SpinSystem> class ESR_Signal { 
-protected:
+public :
     typedef Matrix<double, SpinSystem::matrix_size, 1> SpinVectord;
     typedef Matrix<complexg, SpinSystem::matrix_size, SpinSystem::matrix_size> SpinMatrixcd;
-
-    SpinVectord rho0;
+protected:
     SpinMatrixcd Vx;
     SpinSystem &spins;
-public :
+public:
+    SpinVectord rho0;
     double gamma;
     double gamma_diag;
 
@@ -675,6 +714,14 @@ public :
        rho0 /= t;
     }    
 
+    void load_rho0(const double values[]) { 
+       double t = 0.0;
+       for (int i = 0; i < spins.matrix_size ; i++) { 
+	  rho0(i) = values[i];
+	  t += values[i];
+       }
+       rho0 /= t;
+    }    
 
     complexg chi1(double omega) { 
        complexg c1 = 0.0;
