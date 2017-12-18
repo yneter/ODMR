@@ -175,8 +175,13 @@ public :
     }
 
     void random(void) { 
-       M = AngleAxis<double> ( 2.0 * M_PI * myrand(), random_unit_vector() );
-       mat2euler(M, angles);
+      //       M = AngleAxis<double> ( 2.0 * M_PI * myrand(), random_unit_vector() );
+      //       mat2euler(M, angles);
+
+      double theta = acos( 2.0 * myrand() - 1.0 );
+      double phi1 = 2.0 * M_PI * myrand();
+      double phi2 = 2.0 * M_PI * myrand();      
+      init_from_angles(phi1, theta, phi2);
     }
 };
 
@@ -691,7 +696,8 @@ public:
     }
 
     void update_from_spin_hamiltonian(void) { 
-	Vx = spins.evec.adjoint() * spins.Bac_field_basis_matrix() * spins.evec; 
+       Vx = spins.evec.adjoint() * spins.Bac_field_basis_matrix() * spins.evec; 
+      //	Vx = spins.Bac_field_basis_matrix(); 
     }
 
     double omega_nm(int n, int m) { 
@@ -730,7 +736,6 @@ public:
 	     // 
 	     // the contribution to chi1 vanishes for n == m, whether gamma is the same for diagonal and non diagonal elements is not relvant here 
 	     // 
-	     // cerr << n << "    " << m << "    " << abs(V(m, n)) << endl;
 	     c1 -= (rho0(m) - rho0(n)) * norm(Vx(n, m)) / ( omega_nm(n, m) - omega - iii * gamma );
 	  }
        }

@@ -27,6 +27,8 @@ template <class fitness_finder> struct genotype
 template <class fitness_finder> class simple_GA { 
    fitness_finder &ffinder;
    std::vector<fitness_finder> ffinder_list;
+   enum { NVARS = fitness_finder::NVARS };
+
     
    int int_uniform_ab ( int a, int b ) { 
       return a + (rand() % (b - a + 1));
@@ -38,7 +40,7 @@ template <class fitness_finder> class simple_GA {
 
    void Xover ( int one, int two ) {
       //  Select the crossover point.
-      int point = int_uniform_ab ( 0, fitness_finder::NVARS - 1 );
+      int point = int_uniform_ab ( 0, NVARS - 1 );
       //  Swap genes in positions 0 through POINT-1.
       for (int i = 0; i < point; i++ ) {
 	 double t = population[one].gene[i];
@@ -48,15 +50,18 @@ template <class fitness_finder> class simple_GA {
    }
 
    void copy_gene(int from, int to) { 
-      for (int i = 0; i < fitness_finder::NVARS; i++ ) {
+      for (int i = 0; i < NVARS; i++ ) {
         population[to].gene[i] = population[from].gene[i];
       }
       population[to].score = population[from].score;
       population[to].fitness = population[from].fitness;      
    }
 
+   bool is_fixed[NVARS];
+   double fixed_value[NVARS];
+
 public : 
-   enum { POPSIZE = 48 };
+   enum { POPSIZE = 16 };
 
 
    double PXOVER = 0.8;
@@ -71,6 +76,55 @@ public :
       ffinder_list.reserve(POPSIZE);
       for (int i = 0; i < POPSIZE; i++) { 
 	ffinder_list.push_back( f );
+      }
+      for (int var = 0; var < NVARS; var++) { 
+	 is_fixed[var] = false;
+      }
+   }
+
+   void mutate (void) { 
+      const double a = 0.0;
+      const double b = 1.0;
+      double lbound;
+      double ubound;
+      double x;
+
+      for (int i = 0; i < POPSIZE; i++ ) {
+	 for (int j = 0; j < NVARS; j++ ) {
+	    if ( is_fixed[j] ) { 
+	       population[i].gene[j] = fixed_value[j];
+	    } else { 
+	       x = real_uniform_ab (a, b);
+	       if (x < PMUTATION ) {	      
+		  lbound = population[i].lower[j];
+		  ubound = population[i].upper[j];
+		  population[i].gene[j] = real_uniform_ab (lbound, ubound);
+	       } 
+	    }
+	 }
+      }
+   }
+  
+   void mutate (double amplitude) { 
+      const double a = 0.0;
+      const double b = 1.0;
+      double lbound;
+      double ubound;
+      double x;
+
+      for (int i = 0; i < POPSIZE; i++ ) {
+	 for (int j = 0; j < NVARS; j++ ) {
+	    if ( is_fixed[j] ) { 
+	       population[i].gene[j] = fixed_value[j];
+	    } else { 
+	       x = real_uniform_ab (a, b);
+	       if ( x < PMUTATION ) {	      
+		  lbound = std::max(population[i].lower[j], population[i].gene[j] - amplitude);
+		  ubound = std::min(population[i].upper[j], population[i].gene[j] + amplitude);
+		  population[i].gene[j] = real_uniform_ab (lbound, ubound);
+	       }
+	    }
+	 }
       }
    }
 
@@ -95,6 +149,26 @@ public :
 	}
       }
       return;
+   }
+
+   void fix(int var, double value) { 
+     if (var >= 0 && var < NVARS) {
+        is_fixed[var] = true;
+	fixed_value[var] = value;
+     }
+   }
+
+   void fix_to_gene(double gene[]) { 
+      for (int i = 0; i < NVARS; i++ ) {
+         is_fixed[i] = true;
+         fixed_value[i] = gene[i];
+      }
+   }
+
+   void unfix(int var) { 
+     if (var >= 0 && var < NVARS) {
+        is_fixed[var] = false;
+     }
    }
 
 // 
@@ -172,17 +246,21 @@ public :
 	 population[j].score = 0;	
 	 population[j].rfitness = 0;
 	 population[j].cfitness = 0;
-         for (int i = 0; i < fitness_finder::NVARS; i++ ) {
+         for (int i = 0; i < NVARS; i++ ) {
 	    population[j].lower[i] = ffinder.lower(i);
 	    population[j].upper[i] = ffinder.upper(i);
-	    population[j].gene[i] = real_uniform_ab (population[j].lower[i], population[j].upper[i]); 
+	    if (is_fixed[i]) { 
+	       population[j].gene[i] = fixed_value[i]; 	       
+	    } else { 
+	       population[j].gene[i] = real_uniform_ab (population[j].lower[i], population[j].upper[i]); 
+	    }
 	 }
       }
    }  
 
    void initial_values(int num, const double *gene) { 
       std::cout << "# setting initial_value for gene " << num << std::endl;
-      for (int i = 0; i < fitness_finder::NVARS; i++ ) {
+      for (int i = 0; i < NVARS; i++ ) {
          population[num].gene[i] = gene[i];
       }
       std::cout << "# with initial score " << ffinder.score(population[num].gene) << std::endl;
@@ -208,45 +286,6 @@ public :
       return;
    }
 
-
-   void mutate (void) { 
-      const double a = 0.0;
-      const double b = 1.0;
-      double lbound;
-      double ubound;
-      double x;
-
-      for (int i = 0; i < POPSIZE; i++ ) {
-	 for (int j = 0; j < fitness_finder::NVARS; j++ ) {
-	    x = real_uniform_ab (a, b);
-	    if ( x < PMUTATION ) {	      
-	       lbound = population[i].lower[j];
-	       ubound = population[i].upper[j];
-	       population[i].gene[j] = real_uniform_ab (lbound, ubound);
-	    }
-	 }
-      }
-   }
-  
-
-   void mutate (double amplitude) { 
-      const double a = 0.0;
-      const double b = 1.0;
-      double lbound;
-      double ubound;
-      double x;
-
-      for (int i = 0; i < POPSIZE; i++ ) {
-	 for (int j = 0; j < fitness_finder::NVARS; j++ ) {
-	    x = real_uniform_ab (a, b);
-	    if ( x < PMUTATION ) {	      
-	       lbound = std::max(population[i].lower[j], population[i].gene[j] - amplitude);
-	       ubound = std::min(population[i].upper[j], population[i].gene[j] + amplitude);
-	       population[i].gene[j] = real_uniform_ab (lbound, ubound);
-	    }
-	 }
-      }
-   }
 
    void report ( int generation ) {
       double avg;
@@ -277,7 +316,7 @@ public :
       avg = sum / ( double ) POPSIZE;
       av_score /= (double) POPSIZE;
       square_sum = avg * avg * POPSIZE;
-      stddev = sqrt ( ( sum_square - square_sum ) / ( POPSIZE - 1 ) );
+      stddev = sqrt ( ( sum_square - square_sum ) / (double) POPSIZE );
       best_val = population[POPSIZE].fitness;
       double best_score = population[POPSIZE].score;
 
@@ -357,7 +396,7 @@ public :
 
    void print_info(void) { 
       std::cout << "# POPSIXE " << POPSIZE << std::endl;
-      std::cout << "# NVARS " << fitness_finder::NVARS << std::endl;
+      std::cout << "# NVARS " << NVARS << std::endl;
       std::cout << "# PXOVER " << PXOVER << std::endl;
       std::cout << "# PMUTATION " << PMUTATION << std::endl;
       std::cout << "# temp " << temp << std::endl;
@@ -365,7 +404,7 @@ public :
 
    void print_best(int generation) { 
       std::cout << "# best gene = " << population[POPSIZE].fitness << "\n";
-      for (int i = 0; i < fitness_finder::NVARS; i++ ) {
+      for (int i = 0; i < NVARS; i++ ) {
          std::cout << generation << "   " << i << "    " << population[POPSIZE].gene[i] << "  %" << std::endl;
       }
       std::cout << "# with fitness = " << population[POPSIZE].fitness << "\n";
