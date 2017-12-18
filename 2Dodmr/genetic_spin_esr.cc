@@ -104,8 +104,8 @@ public :
 
 
     void load_matrix(SignalType sign_type = SIGNAL_AMP) { 
-       NY = ceil( (Ymax - Ymin) / dy);
-       NX = ceil( (Xmax - Xmin) / dx);
+       NY = floor( (Ymax - Ymin) / dy) + 1;
+       NX = floor( (Xmax - Xmin) / dx) + 1;
        //       std::cerr << NX << std::endl;
        //       std::cerr << NY << std::endl;
        odmr = Eigen::MatrixXf::Zero(NX, NY);
@@ -162,11 +162,20 @@ public :
 
 
 template <class Spin> class Spin_From_Gene {
+   std::vector<double> varmin;
+   std::vector<double> varmax;
+   std::vector<Spin> spins;
+   std::vector<double> Amps;
+   std::vector<double> signal;
+   std::vector<double> rho0;   
 public: 
-   enum TPenum { D, E, PHI, UZ, THETA, GAMMA, AMP, NTP } ;
+   enum TPenum { D, E, PHI, UZ, THETA, AMP, GAMMA, NTP } ;
 
   // optimize population
-   enum { NPARAMETERS = NTP + Spin::matrix_size };
+   enum { POPSTART = NTP };
+   enum { POPEND = NTP  + Spin::matrix_size };
+   enum { NPARAMETERS = POPEND };
+  
   // don't optimize population 
   //   enum { NPARAMETERS = NTP };
 
@@ -177,11 +186,6 @@ public:
    enum { NSPINS = 1 };
    enum { NVARS = NSPINS * NPARAMETERS };
 
-   std::vector<Spin> spins;
-   std::vector<double> Amps;
-   std::vector<double> signal;
-   std::vector<double> rho0;
-
    ODMR_Matrix data;
    
    double Dmax;
@@ -190,7 +194,42 @@ public:
    double Amp_max;
    double Gamma_max;
 
-   Spin_From_Gene<Spin>(void) : spins(NSPINS), Amps(NSPINS), rho0(Spin::matrix_size) { 
+   int triplet_index(int pair_number, int entry) { 
+       return pair_number * NPARAMETERS + entry;
+   }
+
+
+   Spin_From_Gene<Spin>(void) : spins(NSPINS), Amps(NSPINS), varmin(NVARS), varmax(NVARS), rho0(Spin::matrix_size) { 
+      for (int n = 0; n < NSPINS; n++) { 
+	 varmin[ triplet_index(n, AMP) ] = 0.0;
+	 varmin[ triplet_index(n, GAMMA) ] = 0.0;
+
+	 varmin[ triplet_index(n, UZ) ] = -1.0;
+	 varmin[ triplet_index(n, THETA) ] = -M_PI;
+	 varmin[ triplet_index(n, PHI) ] = -M_PI;
+	 for (int j = POPSTART; j < POPEND; j++) { 
+	    varmin[ triplet_index(n, j) ] = 0.0;
+	 }
+
+	 varmax[ triplet_index(n, UZ) ] = 1.0;
+	 varmax[ triplet_index(n, THETA) ] = M_PI;
+	 varmax[ triplet_index(n, PHI) ] = M_PI;
+	 for (int j = POPSTART; j < POPEND; j++) { 
+	    varmax[ triplet_index(n, j) ] = 1.0;
+	 }
+      }
+   }
+
+   void set_min_for_all_spins(int index, double value) { 
+      for (int n = 0; n < NSPINS; n++) { 
+	 varmin[ triplet_index(n, index) ] = value;
+      }  
+   }
+
+   void set_max_for_all_spins(int index, double value) { 
+      for (int n = 0; n < NSPINS; n++) { 
+	 varmax[ triplet_index(n, index) ] = value;
+      }  
    }
 
    void triplet_from_vector(int index, const std::vector<double> &pairvec, double Bz)
@@ -209,47 +248,20 @@ public:
 	 std::cout << "# E " << spins[i].S.E << std::endl;
 	 std::cout << "# B " << spins[i].S.B << std::endl;
 	 std::cout << "# M " << spins[i].S.rot.matrix()  << std::endl;
+	 std::cout << "# eigenvalues ";
+	 for (int j = 0; j < Spin::matrix_size; j++) {
+	   std::cout << spins[i].eval(j) << "   ";
+	 }
+	 std::cout << std::endl;
       }
   }
 
    double upper(int i) { 
-      int modi = i % NPARAMETERS;
-      if (modi < NTP) { 
-	 TPenum index = static_cast<TPenum>(modi);
-	 switch (index) {
-         case D: 
-	    return Dmax;
-         case E:
-	    return Emax;
-         case UZ: 
-	    return 1.0;
-         case PHI: case THETA: 
-	    return M_PI;
-         case AMP:
-  	    return Amp_max;
-         case GAMMA:
-	    return Gamma_max;
-	 }
-      } else  {
-	 return 1.0;
-      }
+      return varmax[i];
    }
 
    double lower(int i) { 
-      int modi = i % NPARAMETERS;
-      if (modi < NTP) { 
-	 TPenum index = static_cast<TPenum>(modi);
-	 switch (index) {
-         case GAMMA: 
-	   return 0.0; 
-         case AMP: 
-	   return 0.0; 
-         default : 
-	   return -upper(i);
-	 }
-      } else  {
-	 return 0.0;
-      }
+      return varmin[i];
    }
 
    void update_spins_from_gene_at_Bz(const double gene[], double Bz) { 
@@ -263,13 +275,9 @@ public:
       }
    }
 
-   double gamma_from_gene(int pair_number, const double gene[]) { 
-       return gene[pair_number * NPARAMETERS + GAMMA];
-   }
-
    void pop_from_gene(int pair_number, const double gene[]) { 
        for (int i = NTP; i < NPARAMETERS; i++) { 
-	  rho0[i - NTP] = gene[pair_number * NPARAMETERS + i];
+	  rho0[i - NTP] = gene[ triplet_index(pair_number, i) ];
        }
    }
 
@@ -281,8 +289,8 @@ public:
       for (int n = 0; n < NSPINS; n++) { 
 	 ESR_Signal<Spin> esr_from_spins(spins[n]);    
 	 esr_from_spins.update_from_spin_hamiltonian();
-	 esr_from_spins.gamma = gamma_from_gene(n, gene);
-	 esr_from_spins.gamma_diag = gamma_from_gene(n, gene);
+	 esr_from_spins.gamma = gene[ triplet_index(n, GAMMA) ]; 
+	 esr_from_spins.gamma_diag = gene[ triplet_index(n, GAMMA) ]; 
 
 	 if (optimize_population()) { 
 	    pop_from_gene(n, gene);
@@ -298,7 +306,7 @@ public:
       }
    }
 
-   virtual double score(const double gene[]) { 
+   double score(const double gene[]) { 
       int NB = data.Ysize();
       int Nomega = data.Xsize();
 
@@ -325,8 +333,8 @@ public:
 	 double niter,index,val;
 	 if ((iss >> niter >> index >> val)) { 
 	    gene[i] = val;
+	    i++;
 	 }
-	 i++;
        }
        if (i != nparameters) { 
 	  std::cerr << "read_gene - incorrect read " << i << "  " << nparameters << std::endl;
@@ -340,6 +348,8 @@ public:
    void print_gene(const double gene[]) { 
       int NB = data.Ysize();
       int Nomega = data.Xsize();
+      
+      std::cout << "# gene score " << score(gene) << std::endl;
 
       for (int b = 0; b < NB; b++) { 
 	 double Bz = data.dec_y(b);	
@@ -365,40 +375,43 @@ public:
 
    void print_info(void) { 
      std::cout << "# spin_matrix_size " << Spin::matrix_size << std::endl;
-     std::cout << "# Dmax " <<  Dmax << std::endl;
-     std::cout << "# Emax " <<  Emax << std::endl;
-     std::cout << "# Amp_max " <<  Amp_max << std::endl;
-     if (optimize_population()) { 
-        std::cout << "# optimizing population " << std::endl;
-     } else { 
-        std::cout << "# using temperature Tmax " <<  Tmax << std::endl;
-     }
-     std::cout << "# Gamma_max " <<  Gamma_max << std::endl;
      std::cout << "# NSPINS " << NSPINS << std::endl;
+     std::cout << "# variables min/max values: " << std::endl;
+     for (int i = 0; i < NVARS; i++) { 
+       std::cout << "# " << varmin[i] << "   " << varmax[i] << std::endl;
+     }
    }
 };
 
 
 int main()
 {
-    typedef Spin_From_Gene<SingleTriplet> Quintet_From_Gene;
+    typedef Spin_From_Gene<SingleQuintet> Quintet_From_Gene;
 
     Quintet_From_Gene esr;
     esr.data.source_filename = "megaFreqPL12mVB161222.up";    
     esr.data.load_parameters();
     esr.data.Ymin = -100;
     esr.data.Ymax = 40;
-    //    esr.data.Xmin = 800;
-    //    esr.data.Xmax = 1500;
+    //    esr.data.Xmin = 1120;
+    //    esr.data.Xmax = 1400;
     esr.data.load_matrix(ODMR_Matrix::SIGNAL_X);
-    esr.data.print_info();
 
-    esr.Dmax = 3000;
-    esr.Emax = esr.Dmax/3.0;
-    esr.Amp_max = 300.0;
-    esr.Gamma_max = 50.0;
-    esr.Tmax = 2000.0;
+    double D1 = 306.0;
+    esr.set_max_for_all_spins( Quintet_From_Gene::D, 1.1 * D1 );
+    esr.set_min_for_all_spins( Quintet_From_Gene::D, 0.9 * D1 );
+    esr.set_max_for_all_spins( Quintet_From_Gene::E, 0.2 * D1 );
+    esr.set_min_for_all_spins( Quintet_From_Gene::E, 0 );
+    esr.set_max_for_all_spins( Quintet_From_Gene::AMP, 200 );
+    esr.set_max_for_all_spins( Quintet_From_Gene::GAMMA, 30 );
+
+    esr.data.print_info();
     esr.print_info();
+
+    double gene0[ Quintet_From_Gene::NVARS ]; 
+    esr.read_gene("opt1QX.gene", gene0);
+    esr.print_gene(gene0);
+    exit(0);
 
     simple_GA<Quintet_From_Gene> ga(esr);
     ga.initialize();
@@ -413,7 +426,7 @@ int main()
     ga.report(-1);
     ga.keep_the_best();
 
-    int MAXGENS = 100000;
+    int MAXGENS = 2000000;
     
 
     for (int generation = 0; generation < MAXGENS; generation++ ) {
