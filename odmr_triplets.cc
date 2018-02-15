@@ -654,6 +654,7 @@ public :
 
 };
 
+
 const TripletPair::SpinMatrix TripletPair::Jproj ( 
 						   (SpinMatrix() << 0, 0, si3(), 0, -si3(), 0, si3(), 0, 0,
 						    0, 0, 0, 0, 0, -si2(), 0, si2(), 0,
@@ -665,6 +666,34 @@ const TripletPair::SpinMatrix TripletPair::Jproj (
 						    0, si2(), 0, si2(), 0, 0, 0, 0, 0,
 						    1.0, 0, 0, 0, 0, 0, 0, 0, 0 ).finished()
 						    );
+
+
+
+
+class QuintetPair : public SpinPair<QuintetSpin, QuintetSpin> {
+public : 
+    static const SpinMatrix Jproj;
+
+    static const SpinMatrix compute_singlet_projector(void) { 
+       SpinPair<QuintetSpin, QuintetSpin> HJ;
+       HJ.J = 1.0;
+       HJ.update_hamiltonian();
+       HJ.diag();
+       return HJ.evec;
+    }
+
+
+    QuintetPair(void) 
+    {
+    }
+
+    static const SpinMatrix singlet_projector(void) { 
+       return Jproj.row(0).adjoint() * Jproj.row(0);
+    }
+
+};
+
+const QuintetPair::SpinMatrix QuintetPair::Jproj ( QuintetPair::compute_singlet_projector() );
 
 /*
  * ESR_Signal
@@ -782,6 +811,12 @@ public :
         Sproj_eig_basis = this->spins.evec.adjoint() * this->spins.singlet_projector() * this->spins.evec;
 	this->ESR_Signal<SpinSystem>::update_from_spin_hamiltonian();
     }
+
+    void update_from_spin_hamiltonian_local_basis(void) { 
+        Sproj_eig_basis = this->spins.singlet_projector();
+	this->ESR_Signal<SpinSystem>::update_from_spin_hamiltonian();
+    }
+
 
     // explicit calculation of rho2 - close to analytical formula but slow
     void find_rho2_explicit(double omega) { 

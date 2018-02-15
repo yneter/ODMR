@@ -19,6 +19,25 @@
 #include "odmr_triplets.cc"
 #include "genetic.cc"
 
+
+
+class SingleQuintetODMR : public SingleQuintet { 
+public : 
+    Matrix<double, SingleQuintet::matrix_size, 1> ps_vec;
+
+    SpinMatrix singlet_projector(void) { 
+       SpinMatrix S = SpinMatrix::Zero();
+       double sum = 0;
+       for (int i = 0; i < SingleQuintet::matrix_size; i++) { 
+	  sum += ps_vec[i];
+       }
+       for (int i = 0; i < SingleQuintet::matrix_size; i++) { 
+	  S(i, i) = ps_vec[i] / sum;
+       }       
+    };
+};
+
+
 class ODMR_Matrix { 
     double Bmin, Bmax, FreqMin, FreqMax, dB, dFreq;
     int NX, NY;
@@ -166,8 +185,9 @@ template <class Spin> class Spin_From_Gene {
    std::vector<double> varmax;
    std::vector<Spin> spins;
    std::vector<double> Amps;
-   std::vector<double> signal;
    std::vector<double> rho0;   
+
+   MatrixXd signal;
 public: 
    enum TPenum { D, E, PHI, UZ, THETA, AMP, GAMMA, NTP } ;
 
@@ -283,8 +303,8 @@ public:
 
    void comp_signal_for_omega(const double gene[]) {
       int NX = data.Xsize();
-      signal.resize(data.Xsize());
-      for (int i = 0; i < NX; i++) signal[i] = 0.0;
+      signal.resize(NSPINS+1, data.Xsize());
+      signal.setZero();
 
       for (int n = 0; n < NSPINS; n++) { 
 	 ESR_Signal<Spin> esr_from_spins(spins[n]);    
@@ -301,7 +321,8 @@ public:
 
 	 for (int i = 0; i < NX; i++) { 
 	   double omega = data.dec_x(i);
-	   signal[i] += Amps[n] * imag(esr_from_spins.chi1(omega));
+	   signal(n+1, i) = Amps[n] * imag(esr_from_spins.chi1(omega));
+	   signal(0, i) += signal(n+1, i);
 	 }
       }
    }
@@ -316,7 +337,7 @@ public:
 	 update_spins_from_gene_at_Bz(gene, Bz);
 	 comp_signal_for_omega(gene);
 	 for (int w = 0; w < Nomega; w++) { 
-	    gene_score += fabs( data.odmr(w, b) - signal[w] );
+	    gene_score += fabs( data.odmr(w, b) - signal(0, w) );
 	 }
       }
       //      print_triplet_parameters();
@@ -367,7 +388,11 @@ public:
 	 comp_signal_for_omega(gene);
 	 for (int w = 0; w < Nomega; w++) { 
 	    double omega = data.dec_x(w);
-	    std::cout << omega << "   " << Bz << "   " <<  data.odmr(w, b) << "   " << signal[w] << std::endl;
+	    std::cout << omega << "   " << Bz << "   " <<  data.odmr(w, b) << "   " << signal(0, w) << "   ";
+	    for (int n = 0; n < NSPINS; n++) { 
+	        std::cout << signal(n+1, w) << "   ";
+	    }
+	    std::cout << std::endl;
 	 }
 	 std::cout << std::endl;
       }
@@ -383,6 +408,66 @@ public:
    }
 };
 
+/****
+int main7_triplets()
+{
+    typedef Spin_From_Gene<SingleTriplet> Triplet_From_Gene;
+
+    Triplet_From_Gene esr;
+    esr.data.source_filename = "megaFreqPL12mVB161222.up";    
+    esr.data.load_parameters();
+    esr.data.Ymin = -100;
+    esr.data.Ymax = 40;
+    //    esr.data.Xmin = 1120;
+    //    esr.data.Xmax = 1400;
+    esr.data.load_matrix(ODMR_Matrix::SIGNAL_X);
+
+    esr.set_max_for_all_spins( Triplet_From_Gene::D, 2500.0 );
+    esr.set_min_for_all_spins( Triplet_From_Gene::D, 0 );
+    esr.set_max_for_all_spins( Triplet_From_Gene::E, 1500.0 );
+    esr.set_min_for_all_spins( Triplet_From_Gene::E, 0 );
+    esr.set_max_for_all_spins( Triplet_From_Gene::AMP, 200 );
+    esr.set_max_for_all_spins( Triplet_From_Gene::GAMMA, 30 );
+
+    esr.data.print_info();
+    esr.print_info();
+
+    double gene0[ Triplet_From_Gene::NVARS ]; 
+    esr.read_gene("opt7TX.gene", gene0);
+    esr.print_gene(gene0);
+    exit(0);
+
+    simple_GA<Triplet_From_Gene> ga(esr);
+    ga.initialize();
+    ga.temp = 0.005;
+    double anneal_eps = 0.7e-4;
+    double temp_min = 0.0001;
+    std::cout << "# anneal_eps "  << anneal_eps << std::endl;
+    std::cout << "# temp_min "  << temp_min << std::endl;
+
+    ga.print_info();
+    ga.evaluate ();
+    ga.report(-1);
+    ga.keep_the_best();
+
+    int MAXGENS = 2000000;
+    
+
+    for (int generation = 0; generation < MAXGENS; generation++ ) {
+       ga.temp *= (1.0 - anneal_eps);
+       if (ga.temp < temp_min) ga.temp = temp_min;
+       ga.step();
+       ga.report(generation);
+       if (!(generation % 20)) {
+	  ga.print_best(generation);	  
+       }
+    }
+    ga.print_best(MAXGENS);
+}
+
+*****/
+
+
 
 int main()
 {
@@ -393,15 +478,18 @@ int main()
     esr.data.load_parameters();
     esr.data.Ymin = -100;
     esr.data.Ymax = 40;
-    //    esr.data.Xmin = 1120;
-    //    esr.data.Xmax = 1400;
+    //    esr.data.Xmin = 1000;
+    //    esr.data.Xmax = 1950;
+    //    esr.data.Xmax = 1000;
     esr.data.load_matrix(ODMR_Matrix::SIGNAL_X);
 
-    double D1 = 306.0;
-    esr.set_max_for_all_spins( Quintet_From_Gene::D, 1.1 * D1 );
-    esr.set_min_for_all_spins( Quintet_From_Gene::D, 0.9 * D1 );
-    esr.set_max_for_all_spins( Quintet_From_Gene::E, 0.2 * D1 );
-    esr.set_min_for_all_spins( Quintet_From_Gene::E, 0 );
+    double D1 = 439.5;
+    double E1 = 30.8;
+    double epsilon = 0.0;
+    esr.set_max_for_all_spins( Quintet_From_Gene::D, (1. + epsilon) * D1 );
+    esr.set_min_for_all_spins( Quintet_From_Gene::D, (1. - epsilon) * D1 );
+    esr.set_max_for_all_spins( Quintet_From_Gene::E, (1. + epsilon) * E1 );
+    esr.set_min_for_all_spins( Quintet_From_Gene::E, (1. - epsilon) * E1 );
     esr.set_max_for_all_spins( Quintet_From_Gene::AMP, 200 );
     esr.set_max_for_all_spins( Quintet_From_Gene::GAMMA, 30 );
 
@@ -409,7 +497,7 @@ int main()
     esr.print_info();
 
     double gene0[ Quintet_From_Gene::NVARS ]; 
-    esr.read_gene("opt1QX.gene", gene0);
+    esr.read_gene("opt1QXD435test.gene", gene0);
     esr.print_gene(gene0);
     exit(0);
 
