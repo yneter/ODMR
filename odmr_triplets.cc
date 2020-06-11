@@ -10,8 +10,6 @@ using namespace std;
 typedef complex<double> complexg; 
 const complexg iii(0,1);
 
-inline double sq(double x) { return x*x; }
-inline double min(double x, double y) { return (y < x) ? y : x; }
 inline double scalar(complexg a, complexg b) { return real(a)*real(b)+imag(a)*imag(b); }
 double myrand(void) { return (double) rand() / (double) RAND_MAX; }
 typedef long long int lhint;
@@ -186,6 +184,8 @@ public :
 };
 
 
+
+
 struct PauliTripletMatrices { 
     typedef Matrix3cd SpinMatrix;
     static const SpinMatrix Sx;
@@ -198,6 +198,37 @@ const PauliTripletMatrices::SpinMatrix PauliTripletMatrices::Sx ( (SpinMatrix() 
 const PauliTripletMatrices::SpinMatrix PauliTripletMatrices::Sy ( -iii * (SpinMatrix() << 0.0, 1.0, 0.0, -1.0, 0.0, 1.0, 0.0, -1.0, 0.0).finished()/sqrt(2.0) );
 const PauliTripletMatrices::SpinMatrix PauliTripletMatrices::Sz ( ( (SpinMatrix() << 1.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, -1.0).finished() ) );
 const PauliTripletMatrices::SpinMatrix PauliTripletMatrices::Id (  (SpinMatrix() = SpinMatrix::Identity()) );
+
+
+struct PauliMatrices { 
+    enum { matrix_size = 2 };
+    typedef Matrix<complexg, matrix_size, matrix_size>  SpinMatrix;
+    static const SpinMatrix Sx;
+    static const SpinMatrix Sy;
+    static const SpinMatrix Sz;
+    static const SpinMatrix Id;
+};
+const PauliMatrices::SpinMatrix PauliMatrices::Sx ( ( (SpinMatrix() << 0.0, 1.0, 1.0, 0.0).finished() ) );
+const PauliMatrices::SpinMatrix PauliMatrices::Sy ( ( (SpinMatrix() << 0.0, -iii, iii, 0.0).finished() ) );
+const PauliMatrices::SpinMatrix PauliMatrices::Sz ( ( (SpinMatrix() << 1.0, 0.0, 0.0, -1.0).finished() ) );
+const PauliMatrices::SpinMatrix PauliMatrices::Id (  (SpinMatrix() = SpinMatrix::Identity()) );
+
+
+
+struct PauliDoubletMatrices { 
+    enum { matrix_size = 2 };
+    typedef Matrix<complexg, matrix_size, matrix_size>  SpinMatrix;
+    static const SpinMatrix Sx;
+    static const SpinMatrix Sy;
+    static const SpinMatrix Sz;
+    static const SpinMatrix Id;
+};
+const PauliDoubletMatrices::SpinMatrix PauliDoubletMatrices::Sx ( ( (SpinMatrix() << 0.0, 1.0, 1.0, 0.0).finished()/2.0 ) );
+const PauliDoubletMatrices::SpinMatrix PauliDoubletMatrices::Sy ( ( (SpinMatrix() << 0.0, -iii, iii, 0.0).finished()/2.0 ) );
+const PauliDoubletMatrices::SpinMatrix PauliDoubletMatrices::Sz ( ( (SpinMatrix() << 1.0, 0.0, 0.0, -1.0).finished()/2.0 ) );
+const PauliDoubletMatrices::SpinMatrix PauliDoubletMatrices::Id (  (SpinMatrix() = SpinMatrix::Identity()) );
+
+
 
 
 
@@ -232,21 +263,6 @@ const PauliQuintetMatrices::SpinMatrix PauliQuintetMatrices::Sz ( ( (SpinMatrix(
 								     0.0, 0.0, 0.0, 0.0, -2.0
 								     ).finished() ) );
 const PauliQuintetMatrices::SpinMatrix PauliQuintetMatrices::Id (  (SpinMatrix() = SpinMatrix::Identity()) );
-
-
-
-struct PauliMatrices { 
-    typedef Matrix2cd SpinMatrix;
-    static const SpinMatrix Sx;
-    static const SpinMatrix Sy;
-    static const SpinMatrix Sz;
-    static const SpinMatrix Id;
-    enum { matrix_size = 2 };
-};
-const PauliMatrices::SpinMatrix PauliMatrices::Sx (  (SpinMatrix() << 0.0, 1.0, 1.0, 0.0).finished() );
-const PauliMatrices::SpinMatrix PauliMatrices::Sy (  (SpinMatrix() << 0.0, -iii, iii, 0.0).finished() );
-const PauliMatrices::SpinMatrix PauliMatrices::Sz ( (SpinMatrix() << 1.0, 0.0, 0.0, -1.0).finished() );
-const PauliMatrices::SpinMatrix PauliMatrices::Id (  (SpinMatrix() = SpinMatrix::Identity()) );
 
 
 
@@ -291,7 +307,7 @@ public:
        SpinMatrix rSy = r_matrix(1, 0) * Pauli::Sx + r_matrix(1, 1) * Pauli::Sy + r_matrix(1, 2) * Pauli::Sz;
        SpinMatrix rSz = r_matrix(2, 0) * Pauli::Sx + r_matrix(2, 1) * Pauli::Sy + r_matrix(2, 2) * Pauli::Sz;
        Vector3d rBvec = r_matrix * B;
-       Hfull = D * (rSz * rSz - 2.0*Pauli::Id/3.0) + E * (rSy * rSy -  rSx * rSx) 
+       Hfull = D * (rSz * rSz - 2.0*Pauli::Id/3.0) + E * (rSx * rSx -  rSy * rSy) 
 	   + g3[0] * rSx * rBvec[0] + g3[1] * rSy * rBvec[1] + g3[2] * rSz * rBvec[2];
        return Hfull;
     }
@@ -314,7 +330,7 @@ public:
 
 typedef GenericSpin<PauliQuintetMatrices> QuintetSpin;
 typedef GenericSpin<PauliTripletMatrices> TripletSpin;
-typedef GenericSpin<PauliMatrices> SpinHalf;
+typedef GenericSpin<PauliDoubletMatrices> SpinHalf;
 
 template <class Spin1> class SingleSpin { 
 public:
@@ -333,6 +349,11 @@ public :
     { 
     }
 
+    SpinMatrix add_matrix(const SpinMatrix &M) { 
+       Hfull += M;
+       return Hfull;
+    }
+
     SpinMatrix update_hamiltonian(void) { 
        Hfull = S.update_hamiltonian();
        return Hfull;
@@ -349,8 +370,25 @@ public :
        evec = eigensolver.eigenvectors();
     }
 
+    void diag_eval_only(void) { 
+       SelfAdjointEigenSolver<SpinMatrix> eigensolver(Hfull);
+       if (eigensolver.info() != Success) abort();
+       eval = eigensolver.eigenvalues();
+    }
+
     SpinMatrix Bac_field_basis_matrix(void) { 
        return S.Sx;
+      //       return S.Sz;
+    }
+
+    SpinMatrix Sx(void) { 
+       return S.Sx;
+    }
+    SpinMatrix Sy(void) { 
+       return S.Sy;
+    }
+    SpinMatrix Sz(void) { 
+       return S.Sz;
     }
 
 };
@@ -425,6 +463,12 @@ public :
        eval = eigensolver.eigenvalues();
        evec = eigensolver.eigenvectors();
     }
+
+    void diag_eval_only(void) { 
+       SelfAdjointEigenSolver<SpinMatrix> eigensolver(Hfull);
+       if (eigensolver.info() != Success) abort();
+       eval = eigensolver.eigenvalues();
+    }
  
     double sz_elem(int i) { 
        SpinMatrix Sz2 = kroneckerProduct(S1.Sz, S2.Id).eval() + kroneckerProduct(S1.Id, S2.Sz).eval();
@@ -445,11 +489,36 @@ public :
        return kroneckerProduct(S1.Sx, S2.Id).eval() + kroneckerProduct(S1.Id, S2.Sx).eval();
     }
 
+    SpinMatrix Sx(void) { 
+       return kroneckerProduct(S1.Sx, S2.Id).eval() + kroneckerProduct(S1.Id, S2.Sx).eval();
+    }
+    SpinMatrix Sy(void) { 
+       return kroneckerProduct(S1.Sy, S2.Id).eval() + kroneckerProduct(S1.Id, S2.Sy).eval();
+    }
+    SpinMatrix Sz(void) { 
+       return kroneckerProduct(S1.Sz, S2.Id).eval() + kroneckerProduct(S1.Id, S2.Sz).eval();
+    }
+
+
+    complexg Sx(int n, int m) { 
+       return evec.col(n).adjoint() * Sx() * evec.col(m);
+    }
+
+    complexg Sy(int n, int m) { 
+       return evec.col(n).adjoint() * Sy() * evec.col(m);
+    }
+
+    complexg Sz(int n, int m) { 
+       return evec.col(n).adjoint() * Sz() * evec.col(m);
+    }
+
+
 };
 
 
 
 typedef std::unique_ptr<GenericSpinBase> SpinBasePtr;
+// typedef std::shared_ptr<GenericSpinBase> SpinBasePtr;
 namespace SpinTupleAux { 
   template <typename T> constexpr int find_matrix_size(void) { return T::matrix_size; }
 
@@ -493,22 +562,39 @@ namespace SpinTupleAux {
   template <int I, typename... Tp>  constexpr inline int find_left_matrix_size(void) { 
     return find_left_matrix_size<I,0,Tp...>();
   }
+
 }
+
+
+
+
 
 
 template <typename... Tp> struct SpinTuple { 
     enum { matrix_size = SpinTupleAux::find_matrix_size<Tp...>() };
     enum { spin_number = sizeof...(Tp) };
     typedef Matrix<complexg, matrix_size, matrix_size> SpinMatrix;
+    typedef Matrix<complexg, matrix_size, 1> SpinVector;
     typedef Matrix<double, matrix_size, 1> SpinVectorReal;
+    typedef Matrix<double, 3, spin_number> SpinPositionMatrix;
+    typedef Matrix<double, spin_number, spin_number> SpinExchangeMatrix;
+
 private:
     SpinMatrix Hfull;
     std::vector< SpinBasePtr > Svec;
+    bool dipole_dipole_enabled;
+    double Gamma_dip;
+    SpinPositionMatrix spin_positions;
+    bool exchange_enabled;
+    SpinExchangeMatrix spin_exchange_matrix;
+
 public:
 
     SpinTuple() 
     {
         SpinTupleAux::fill_S<Tp...>(Svec);
+	dipole_dipole_enabled = false;
+	exchange_enabled = false;
     }
 
 private :
@@ -530,18 +616,22 @@ private :
        constexpr static const int size_J = SpinTupleAux::find_item_matrix_size<J, Tp...>();
        constexpr static const int size_J_right = matrix_size / (size_J_left * size_J);
        constexpr static const int size_center = size_J_left / (size_I_left * size_I);
-
+       
        typedef Matrix<complexg, size_I_left, size_I_left> MatrixLeft;
        typedef Matrix<complexg, size_I, size_I> MatrixI;
        typedef Matrix<complexg, size_center, size_center> MatrixCenter;
        typedef Matrix<complexg, size_J, size_J> MatrixJ;
        typedef Matrix<complexg, size_J_right, size_J_right> MatrixRight;
-
+       
        return kroneckerProduct(MatrixLeft::Identity(), 
-		kroneckerProduct(Map< MatrixI > (Hi), 
-		  kroneckerProduct(MatrixCenter::Identity(), 
-		    kroneckerProduct(Map< MatrixJ > (Hj), MatrixRight::Identity())
-				   ))).eval();
+			       kroneckerProduct(Map< MatrixI > (Hi), 
+						kroneckerProduct(MatrixCenter::Identity(), 
+								 kroneckerProduct(Map< MatrixJ > (Hj), MatrixRight::Identity())
+								 ))).eval();
+    } 
+
+    template <int I, int J> inline typename std::enable_if< J < I, SpinMatrix>::type make_matrix_HiHj(TransferSpinMatrix Hi, TransferSpinMatrix Hj) { 
+        return make_matrix_HiHj<J, I>(Hj, Hi);
     } 
 
 
@@ -551,6 +641,7 @@ private :
     }
 
     template <int I> inline typename std::enable_if< I == sizeof...(Tp), void>::type uncoupled_hamiltonian(void) { }
+
 
 public : 
     void load_uncoupled_hamiltonian(void) { 
@@ -603,15 +694,158 @@ public :
        eval = eigensolver.eigenvalues();
        evec = eigensolver.eigenvectors();
     }
- 
 
+private : 
+    template <int I, int J> inline typename std::enable_if< I < J, void>::type add_dipole_dipole_I_less_J(double Jij, Vector3d uvec) {
+       //       std::cerr << "# dipole loop " << I << "     " << J << "      " << Jij << std::endl;
+       add_dipole_dipole<I,J>(Jij, uvec);
+    }
+
+    template <int I, int J> inline typename std::enable_if< I >= J, void>::type add_dipole_dipole_I_less_J(double Jij, Vector3d uvec) {
+    }
+
+    template <int K> inline typename std::enable_if< K != 0, void>::type add_dipole_dipole_loop(double Gamma, const SpinPositionMatrix &spin_position_matrix) { 
+       constexpr static const int I = K / spin_number;
+       constexpr static const int J = K % spin_number;      
+
+       Vector3d r12 = spin_position_matrix.col(I) - spin_position_matrix.col(J);
+       Vector3d uvec = r12.normalized();
+       double d12 = r12.norm();
+       double Jij = Gamma / (d12 * d12 * d12);
+
+       add_dipole_dipole_I_less_J<I,J>(Jij, uvec);
+       add_dipole_dipole_loop<K-1>(Gamma, spin_position_matrix);
+    }
+
+    template <int K> inline typename std::enable_if< K == 0, void>::type add_dipole_dipole_loop(double Gamma, const SpinPositionMatrix &spin_position_matrix) { }
+
+
+    template <int I, int J> inline typename std::enable_if< I < J, void>::type add_exchange_I_less_J(double Jex) {
+       add_exchange<I, J>(Jex);
+    }
+
+    template <int I, int J> inline typename std::enable_if< I >= J, void>::type add_exchange_I_less_J(double Jex) {
+    }
+    
+    template <int K> inline typename std::enable_if< K != 0, void>::type add_exchange_loop(void) { 
+       constexpr static const int I = K / spin_number;
+       constexpr static const int J = K % spin_number;      
+       add_exchange_I_less_J<I,J> ( spin_exchange_matrix(I, J) );
+       add_exchange_loop<K-1>();
+    }
+
+    template <int K> inline typename std::enable_if< K == 0, void>::type add_exchange_loop(void) { 
+    }
+
+public : 
+
+    void dipole_dipole_interaction(double Gamma, const SpinPositionMatrix &spin_positions_matrix) { 
+       dipole_dipole_enabled = true;
+       Gamma_dip = Gamma;
+       spin_positions = spin_positions_matrix;
+    }
+
+    void disable_dipole_dipole_interaction(void) { 
+       dipole_dipole_enabled = false;
+    }
+
+    void exchange_interaction(const SpinExchangeMatrix &exchange_interaction_matrix) { 
+       exchange_enabled = true;
+       spin_exchange_matrix = exchange_interaction_matrix;
+    }
+
+    SpinExchangeMatrix exchange_interaction(void) { 
+       return spin_exchange_matrix;
+    }
+
+    void disable_exchange_interaction(void) { 
+       exchange_enabled = false;
+    }
+
+private : 
+    template <int I> inline typename std::enable_if< I < sizeof...(Tp), SpinMatrix>::type Sx_loop(void) { 
+        return make_matrix_Hi<I>( Svec[I]->Sx_gen() ) + Sx_loop<I+1>();
+    }
+
+    template <int I> inline typename std::enable_if< I == sizeof...(Tp), SpinMatrix>::type Sx_loop(void) { 
+        return SpinMatrix::Zero();
+    }
+
+    template <int I> inline typename std::enable_if< I < sizeof...(Tp), SpinMatrix>::type Sy_loop(void) { 
+        return make_matrix_Hi<I>( Svec[I]->Sy_gen() ) + Sy_loop<I+1>();
+    }
+
+    template <int I> inline typename std::enable_if< I == sizeof...(Tp), SpinMatrix>::type Sy_loop(void) { 
+        return SpinMatrix::Zero();
+    }
+
+    template <int I> inline typename std::enable_if< I < sizeof...(Tp), SpinMatrix>::type Sz_loop(void) { 
+        return make_matrix_Hi<I>( Svec[I]->Sz_gen() ) + Sz_loop<I+1>();
+    }
+
+    template <int I> inline typename std::enable_if< I == sizeof...(Tp), SpinMatrix>::type Sz_loop(void) { 
+        return SpinMatrix::Zero();
+    }
+
+public :
+    SpinMatrix Sx(void) { 
+        return Sx_loop<0>();
+    }
+
+    SpinMatrix Sy(void) { 
+        return Sy_loop<0>();
+    }
+  
+    SpinMatrix Sz(void) { 
+        return Sy_loop<0>();
+    }
+  
+    complexg Sx(int n, int m) { 
+       return evec.col(n).adjoint() * Sx() * evec.col(m);
+    }
+
+    complexg Sy(int n, int m) { 
+       return evec.col(n).adjoint() * Sy() * evec.col(m);
+    }
+
+    complexg Sz(int n, int m) { 
+       return evec.col(n).adjoint() * Sz() * evec.col(m);
+    }
+
+    void update_hamiltonian(void) { 
+       load_uncoupled_hamiltonian();
+       if (dipole_dipole_enabled) { 
+	  add_dipole_dipole_loop<spin_number * spin_number-1>(Gamma_dip, spin_positions);
+       }
+       if (exchange_enabled) { 
+	  add_exchange_loop<spin_number * spin_number-1>();
+       }
+    }
 };
 
 
 class SingleTriplet : public SingleSpin<TripletSpin> { 
+public : 
+    static const SpinMatrix singlet_projector(void) { 
+      return (SpinMatrix() << 
+         0.0, 0.0, 0.0, 
+         0.0, 1.0, 0.0, 
+         0.0, 0.0, 0.0
+              ).finished();
+    };
 };
 
 class SingleQuintet : public SingleSpin<QuintetSpin> { 
+public : 
+    static const SpinMatrix singlet_projector(void) { 
+      return (SpinMatrix() << 
+         0.0, 0.0, 0.0, 0.0, 0.0, 
+         0.0, 0.0, 0.0, 0.0, 0.0,
+         0.0, 0.0, 1.0, 0.0, 0.0, 
+         0.0, 0.0, 0.0, 0.0, 0.0,
+         0.0, 0.0, 0.0, 0.0, 0.0
+              ).finished();
+    };
 };
 
 
@@ -624,7 +858,6 @@ private:
 
 public : 
     static const SpinMatrix Jproj;
-
     TripletPair(void) 
     {
     }
@@ -648,10 +881,16 @@ public :
        return real(norm2(0));
     }
 
+    static const SpinVector singlet(void) { 
+       return Jproj.row(0).adjoint();
+    }
     static const SpinMatrix singlet_projector(void) { 
        return Jproj.row(0).adjoint() * Jproj.row(0);
     }
 
+    static const SpinVector singlet_wavefunction(void) { 
+       return Jproj.col(0);
+    }
 };
 
 
@@ -705,27 +944,34 @@ const QuintetPair::SpinMatrix QuintetPair::Jproj ( QuintetPair::compute_singlet_
  * spins.matrix_size
  * spins.evec
  * spins.eval
- * spins.Bac_field_basis_matrix()
+ *
+ * spins.Sx
+ * spins.Sy
+ * spins.Sz
+ *
+ * no longer needed : spins.Bac_field_basis_matrix()
  */ 
 template <class SpinSystem> class ESR_Signal { 
 public :
-    typedef Matrix<double, SpinSystem::matrix_size, 1> SpinVectord;
-    typedef Matrix<complexg, SpinSystem::matrix_size, SpinSystem::matrix_size> SpinMatrixcd;
+    typedef Matrix<double, SpinSystem::matrix_size, 1> SpinVectorReal;
+    typedef Matrix<complexg, SpinSystem::matrix_size, 1> SpinVector;
+    typedef Matrix<complexg, SpinSystem::matrix_size, SpinSystem::matrix_size> SpinMatrix;
 protected:
-    SpinMatrixcd Vx;
+    SpinMatrix Vx;
     SpinSystem &spins;
 public:
-    SpinVectord rho0;
+    SpinVectorReal rho0;
     double gamma;
     double gamma_diag;
+    Vector3d Bac;  // magnetic field in laboratory frame 
 
 
     ESR_Signal(SpinSystem &spin_system) : spins(spin_system){
-
+       Bac << 1.0, 0.0, 0.0;
     }
 
     void update_from_spin_hamiltonian(void) { 
-       Vx = spins.evec.adjoint() * spins.Bac_field_basis_matrix() * spins.evec; 
+       Vx = spins.evec.adjoint() * (Bac(0) * spins.Sx() + Bac(1) * spins.Sy() + Bac(2) * spins.Sz() )* spins.evec; 
       //	Vx = spins.Bac_field_basis_matrix(); 
     }
 
@@ -739,6 +985,20 @@ public:
        }
        double t = rho0.sum();
        rho0 /= t;
+    }
+
+    void load_rho0_from_state_projections(const SpinVector &state) { 
+       for (int i = 0; i < spins.matrix_size ; i++) { 
+	  complexg ci = state.adjoint() * spins.evec.col(i);
+	  rho0(i) = norm(ci);
+       }
+    }
+
+    void load_rho0_from_projector(const SpinMatrix &proj) { 
+       for (int i = 0; i < spins.matrix_size ; i++) { 
+	  complexg ci = spins.evec.col(i).adjoint() * proj * spins.evec.col(i);
+	  rho0(i) = real(ci);
+       }
     }
 
     void load_rho0(const std::vector<double> &values) { 
@@ -757,6 +1017,7 @@ public:
        }
        rho0 /= t;
     }    
+
 
     complexg chi1(double omega) { 
        complexg c1 = 0.0;
@@ -785,15 +1046,14 @@ public:
  * spins.matrix_size
  * spins.evec
  * spins.eval
- * spins.Bac_field_basis_matrix()
  * and for ODMR signal 
  * spins.singlet_projector()
  */ 
 template <class SpinSystem> class ODMR_Signal : public ESR_Signal<SpinSystem> { 
-    typedef Matrix<double, SpinSystem::matrix_size, 1> SpinVectord;
-    typedef Matrix<complexg, SpinSystem::matrix_size, SpinSystem::matrix_size> SpinMatrixcd;
-    SpinMatrixcd rho2;
-    SpinMatrixcd Sproj_eig_basis;
+    typedef Matrix<double, SpinSystem::matrix_size, 1> SpinVectorReal;
+    typedef Matrix<complexg, SpinSystem::matrix_size, SpinSystem::matrix_size> SpinMatrix;
+    SpinMatrix rho2;
+    SpinMatrix Sproj_eig_basis;
 public :
     ODMR_Signal(SpinSystem &spin_system): ESR_Signal<SpinSystem>(spin_system) { 
 
@@ -842,7 +1102,7 @@ public :
 
     // optimized calculation of rho2
     void find_rho2(double omega) { 
-       SpinMatrixcd Vtmp = SpinMatrixcd::Zero();
+       SpinMatrix Vtmp = SpinMatrix::Zero();
        for (int m = 0; m < this->spins.matrix_size ; m++) { 
 	  for (int nu = 0; nu < this->spins.matrix_size ; nu++) { 
 	     for (int p = -1; p <= 1; p += 2) { 
@@ -910,6 +1170,7 @@ namespace internal {
 
 template <class SpinSystem> class Merrifield :public Eigen::EigenBase< Merrifield<SpinSystem> >  { 
     SpinSystem &spins;
+    bool rho_initialized;
 public:
     double gammaS;
     double gamma;
@@ -931,8 +1192,9 @@ public:
     };
   
     Index rows() const { return SpinSystem::matrix_size * SpinSystem::matrix_size; }
-    Index cols() const { return SpinSystem::matrix_size * SpinSystem::matrix_size; }
+    Index cols() const { return SpinSystem::matrix_size * SpinSystem::matrix_size; } 
 
+  
     template<typename Rhs>
     Eigen::Product<Merrifield<SpinSystem>,Rhs,Eigen::AliasFreeProduct> 
     operator*(const Eigen::MatrixBase<Rhs>& x) const {
@@ -942,6 +1204,7 @@ public:
 
     Merrifield(SpinSystem &spin_system) : spins(spin_system) {
        Ps = spins.singlet_projector();
+       rho_initialized = false;
     }
 private : 
     double trace_rho_Ps(void) { 
@@ -976,14 +1239,41 @@ public  :
         return map_to_vec(Ps);
     }
 
-    void find_rho(void) { 
-        Eigen::BiCGSTAB< Merrifield<SpinSystem> , Eigen::IdentityPreconditioner> bicg;
+    void find_rho(bool use_previous_as_guess = true) { 
+      //        Eigen::BiCGSTAB< Merrifield<SpinSystem>, Eigen::DiagonalPreconditioner<complexg> > bicg;
+        Eigen::BiCGSTAB< Merrifield<SpinSystem> , Eigen::IdentityPreconditioner > bicg;
+      //        Eigen::ConjugateGradient< Merrifield<SpinSystem> , Lower|Upper, Eigen::IdentityPreconditioner > bicg;
 	bicg.compute(*this);
 	SpinMatrixVecForm x;
 	SpinMatrixVecForm y = -Ps_to_vec();
-	x = bicg.solve(y);    
+	if (!rho_initialized || !use_previous_as_guess) { 
+	   x = bicg.solve(y);    
+	} else { 
+	   x = bicg.solveWithGuess(y, map_to_vec(rho));
+	}
 	//	std::cout << "BiCGSTAB: #iterations: " << bicg.iterations() << ", estimated error: " << bicg.error() << std::endl;
+	std::cerr << "#iterations:     " << bicg.iterations() << std::endl;
+	std::cerr << "estimated error: " << bicg.error()      << std::endl;
+
 	rho = map_to_mat(x);
+	rho_initialized = true;
+    }
+
+
+    void find_rho(SpinMatrix guess) { 
+      //        Eigen::BiCGSTAB< Merrifield<SpinSystem>, Eigen::DiagonalPreconditioner<complexg> > bicg;
+        Eigen::BiCGSTAB< Merrifield<SpinSystem> , Eigen::IdentityPreconditioner > bicg;
+	//       Eigen::ConjugateGradient< Merrifield<SpinSystem> , Lower|Upper, Eigen::IdentityPreconditioner > bicg;
+	SpinMatrixVecForm x;
+	SpinMatrixVecForm y = -Ps_to_vec();
+	bicg.compute(*this);
+	x = bicg.solveWithGuess(y, map_to_vec(guess));
+	//	x = bicg.solve(y);    
+	//	std::cout << "BiCGSTAB: #iterations: " << bicg.iterations() << ", estimated error: " << bicg.error() << std::endl;
+	std::cerr << "#iterations:     " << bicg.iterations() << std::endl;
+	std::cerr << "#estimated error: " << bicg.error()      << std::endl;
+	rho = map_to_mat(x);
+	rho_initialized = true;
     }
 
 
@@ -1005,7 +1295,7 @@ public  :
  * Input : spins, a reference on SpinSystem object
  * SpinSystem should define 
  * spins.matrix_size
- * spins.singlet_content 
+ * spins.singlet_projector 
  */
 template <class SpinSystem> class MerrifieldRate { 
     SpinSystem &spins;
@@ -1020,11 +1310,16 @@ public:
     double gamma;
     double gammaS;
     
+    double singlet_content(int i) {
+      //       Matrix<complexg, 1, 1> iProj = evec.block(0, i, matrix_size, 1).adjoint() * singlet_projector() * evec.block(0, i, matrix_size, 1);
+        complexg iProj = spins.evec.col(i).adjoint() * spins.singlet_projector() * spins.evec.col(i);
+	return real(iProj);
+    }
 
     void find_rho(void) { 
         rho = SpinMatrix::Zero();
 	for (int i = 0; i < SpinSystem::matrix_size; i++) {
-	   double alpha_i = spins.singlet_content(i);
+	   double alpha_i = singlet_content(i);
 	   rho(i, i) = alpha_i / (gamma + 2.0 * gammaS * alpha_i);
 	}	
 	rho = spins.evec * rho * spins.evec.adjoint();
@@ -1033,7 +1328,7 @@ public:
     double PL(int npow = 2) { 
         double sum = 0.0;
 	for (int i = 0; i < SpinSystem::matrix_size; i++) {
-	   double alpha_n = spins.singlet_content(i);
+	   double alpha_n = singlet_content(i);
 	   sum += pow(alpha_n, npow) / (gamma + 2.0 * gammaS * alpha_n);
 	}
 	return sum;
@@ -1119,6 +1414,189 @@ struct HFE : public HFE_SpinTuple {
     }
 
 };
+
+
+struct Spin0p5 { 
+    enum { matrix_size = 2 };
+    typedef Matrix<complexg, matrix_size, matrix_size>  SpinMatrix;
+    static const SpinMatrix Sx;
+    static const SpinMatrix Sy;
+    static const SpinMatrix Sz;
+    static const SpinMatrix Id;
+    static const SpinMatrix Sp;
+    static const SpinMatrix Sm;
+};
+const Spin0p5::SpinMatrix Spin0p5::Sx ( ( (SpinMatrix() <<  0, 1./2., 1./2., 0).finished() ) );
+const Spin0p5::SpinMatrix Spin0p5::Sy ( ( (SpinMatrix() <<  0, iii * 1./2., -iii * 1./2., 0).finished() ) );
+const Spin0p5::SpinMatrix Spin0p5::Sz ( ( (SpinMatrix() <<  1./2., 0, 0, -1./2.).finished() ) );
+const Spin0p5::SpinMatrix Spin0p5::Id (  (SpinMatrix() = SpinMatrix::Identity()) );
+const Spin0p5::SpinMatrix Spin0p5::Sp (  (SpinMatrix() = Spin0p5::Sx + iii * Spin0p5::Sy) );
+const Spin0p5::SpinMatrix Spin0p5::Sm (  (SpinMatrix() = Spin0p5::Sx - iii * Spin0p5::Sy) );
+
+struct Spin1 { 
+    enum { matrix_size = 3 };
+    typedef Matrix<complexg, matrix_size, matrix_size>  SpinMatrix;
+    static const SpinMatrix Sx;
+    static const SpinMatrix Sy;
+    static const SpinMatrix Sz;
+    static const SpinMatrix Id;
+    static const SpinMatrix Sp;
+    static const SpinMatrix Sm;
+};
+const Spin1::SpinMatrix Spin1::Sx ( ( (SpinMatrix() <<  0, sqrt(1./2.), 0, sqrt(1./2.), 0, sqrt(1./2.), 0, sqrt(1./2.), 0).finished() ) );
+const Spin1::SpinMatrix Spin1::Sy ( ( (SpinMatrix() <<  0, iii * sqrt(1./2.), 0, -iii * sqrt(1./2.), 0, iii * sqrt(1./2.), 0, -iii * sqrt(1./2.), 0).finished() ) );
+const Spin1::SpinMatrix Spin1::Sz ( ( (SpinMatrix() <<  1, 0, 0, 0, 0, 0, 0, 0, -1).finished() ) );
+const Spin1::SpinMatrix Spin1::Id (  (SpinMatrix() = SpinMatrix::Identity()) );
+const Spin1::SpinMatrix Spin1::Sp (  (SpinMatrix() = Spin1::Sx + iii * Spin1::Sy) );
+const Spin1::SpinMatrix Spin1::Sm (  (SpinMatrix() = Spin1::Sx - iii * Spin1::Sy) );
+
+struct Spin1p5 { 
+    enum { matrix_size = 4 };
+    typedef Matrix<complexg, matrix_size, matrix_size>  SpinMatrix;
+    static const SpinMatrix Sx;
+    static const SpinMatrix Sy;
+    static const SpinMatrix Sz;
+    static const SpinMatrix Id;
+    static const SpinMatrix Sp;
+    static const SpinMatrix Sm;
+};
+const Spin1p5::SpinMatrix Spin1p5::Sx ( ( (SpinMatrix() <<  0, sqrt(3.)/2., 0, 0, sqrt(3.)/2., 0, 1., 0, 0, 1., 0, sqrt(3.)/2., 0, 0, sqrt(3.)/2., 0).finished() ) );
+const Spin1p5::SpinMatrix Spin1p5::Sy ( ( (SpinMatrix() <<  0, iii * sqrt(3.)/2., 0, 0, -iii * sqrt(3.)/2., 0, iii * 1., 0, 0, -iii * 1., 0, iii * sqrt(3.)/2., 0, 0, -iii * sqrt(3.)/2., 0).finished() ) );
+const Spin1p5::SpinMatrix Spin1p5::Sz ( ( (SpinMatrix() <<  3./2., 0, 0, 0, 0, 1./2., 0, 0, 0, 0, -1./2., 0, 0, 0, 0, -3./2.).finished() ) );
+const Spin1p5::SpinMatrix Spin1p5::Id (  (SpinMatrix() = SpinMatrix::Identity()) );
+const Spin1p5::SpinMatrix Spin1p5::Sp (  (SpinMatrix() = Spin1p5::Sx + iii * Spin1p5::Sy) );
+const Spin1p5::SpinMatrix Spin1p5::Sm (  (SpinMatrix() = Spin1p5::Sx - iii * Spin1p5::Sy) );
+
+struct Spin2 { 
+    enum { matrix_size = 5 };
+    typedef Matrix<complexg, matrix_size, matrix_size>  SpinMatrix;
+    static const SpinMatrix Sx;
+    static const SpinMatrix Sy;
+    static const SpinMatrix Sz;
+    static const SpinMatrix Id;
+    static const SpinMatrix Sp;
+    static const SpinMatrix Sm;
+};
+const Spin2::SpinMatrix Spin2::Sx ( ( (SpinMatrix() <<  0, 1., 0, 0, 0, 1., 0, sqrt(3./2.), 0, 0, 0, sqrt(3./2.), 0, sqrt(3./2.), 0, 0, 0, sqrt(3./2.), 0, 1., 0, 0, 0, 1., 0).finished() ) );
+const Spin2::SpinMatrix Spin2::Sy ( ( (SpinMatrix() <<  0, iii * 1., 0, 0, 0, -iii * 1., 0, iii * sqrt(3./2.), 0, 0, 0, -iii * sqrt(3./2.), 0, iii * sqrt(3./2.), 0, 0, 0, -iii * sqrt(3./2.), 0, iii * 1., 0, 0, 0, -iii * 1., 0).finished() ) );
+const Spin2::SpinMatrix Spin2::Sz ( ( (SpinMatrix() <<  2, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, -1, 0, 0, 0, 0, 0, -2).finished() ) );
+const Spin2::SpinMatrix Spin2::Id (  (SpinMatrix() = SpinMatrix::Identity()) );
+const Spin2::SpinMatrix Spin2::Sp (  (SpinMatrix() = Spin2::Sx + iii * Spin2::Sy) );
+const Spin2::SpinMatrix Spin2::Sm (  (SpinMatrix() = Spin2::Sx - iii * Spin2::Sy) );
+
+struct Spin2p5 { 
+    enum { matrix_size = 6 };
+    typedef Matrix<complexg, matrix_size, matrix_size>  SpinMatrix;
+    static const SpinMatrix Sx;
+    static const SpinMatrix Sy;
+    static const SpinMatrix Sz;
+    static const SpinMatrix Id;
+    static const SpinMatrix Sp;
+    static const SpinMatrix Sm;
+};
+const Spin2p5::SpinMatrix Spin2p5::Sx ( ( (SpinMatrix() <<  0, sqrt(5.)/2., 0, 0, 0, 0, sqrt(5.)/2., 0, sqrt(8.)/2., 0, 0, 0, 0, sqrt(8.)/2., 0, 3./2., 0, 0, 0, 0, 3./2., 0, sqrt(8.)/2., 0, 0, 0, 0, sqrt(8.)/2., 0, sqrt(5.)/2., 0, 0, 0, 0, sqrt(5.)/2., 0).finished() ) );
+const Spin2p5::SpinMatrix Spin2p5::Sy ( ( (SpinMatrix() <<  0, iii * sqrt(5.)/2., 0, 0, 0, 0, -iii * sqrt(5.)/2., 0, iii * sqrt(8.)/2., 0, 0, 0, 0, -iii * sqrt(8.)/2., 0, iii * 3./2., 0, 0, 0, 0, -iii * 3./2., 0, iii * sqrt(8.)/2., 0, 0, 0, 0, -iii * sqrt(8.)/2., 0, iii * sqrt(5.)/2., 0, 0, 0, 0, -iii * sqrt(5.)/2., 0).finished() ) );
+const Spin2p5::SpinMatrix Spin2p5::Sz ( ( (SpinMatrix() <<  5./2., 0, 0, 0, 0, 0, 0, 3./2., 0, 0, 0, 0, 0, 0, 1./2., 0, 0, 0, 0, 0, 0, -1./2., 0, 0, 0, 0, 0, 0, -3./2., 0, 0, 0, 0, 0, 0, -5./2.).finished() ) );
+const Spin2p5::SpinMatrix Spin2p5::Id (  (SpinMatrix() = SpinMatrix::Identity()) );
+const Spin2p5::SpinMatrix Spin2p5::Sp (  (SpinMatrix() = Spin2p5::Sx + iii * Spin2p5::Sy) );
+const Spin2p5::SpinMatrix Spin2p5::Sm (  (SpinMatrix() = Spin2p5::Sx - iii * Spin2p5::Sy) );
+
+struct Spin3 { 
+    enum { matrix_size = 7 };
+    typedef Matrix<complexg, matrix_size, matrix_size>  SpinMatrix;
+    static const SpinMatrix Sx;
+    static const SpinMatrix Sy;
+    static const SpinMatrix Sz;
+    static const SpinMatrix Id;
+    static const SpinMatrix Sp;
+    static const SpinMatrix Sm;
+};
+const Spin3::SpinMatrix Spin3::Sx ( ( (SpinMatrix() <<  0, sqrt(3./2.), 0, 0, 0, 0, 0, sqrt(3./2.), 0, sqrt(5./2.), 0, 0, 0, 0, 0, sqrt(5./2.), 0, sqrt(6./2.), 0, 0, 0, 0, 0, sqrt(6./2.), 0, sqrt(6./2.), 0, 0, 0, 0, 0, sqrt(6./2.), 0, sqrt(5./2.), 0, 0, 0, 0, 0, sqrt(5./2.), 0, sqrt(3./2.), 0, 0, 0, 0, 0, sqrt(3./2.), 0).finished() ) );
+const Spin3::SpinMatrix Spin3::Sy ( ( (SpinMatrix() <<  0, iii * sqrt(3./2.), 0, 0, 0, 0, 0, -iii * sqrt(3./2.), 0, iii * sqrt(5./2.), 0, 0, 0, 0, 0, -iii * sqrt(5./2.), 0, iii * sqrt(6./2.), 0, 0, 0, 0, 0, -iii * sqrt(6./2.), 0, iii * sqrt(6./2.), 0, 0, 0, 0, 0, -iii * sqrt(6./2.), 0, iii * sqrt(5./2.), 0, 0, 0, 0, 0, -iii * sqrt(5./2.), 0, iii * sqrt(3./2.), 0, 0, 0, 0, 0, -iii * sqrt(3./2.), 0).finished() ) );
+const Spin3::SpinMatrix Spin3::Sz ( ( (SpinMatrix() <<  3, 0, 0, 0, 0, 0, 0, 0, 2, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, -1, 0, 0, 0, 0, 0, 0, 0, -2, 0, 0, 0, 0, 0, 0, 0, -3).finished() ) );
+const Spin3::SpinMatrix Spin3::Id (  (SpinMatrix() = SpinMatrix::Identity()) );
+const Spin3::SpinMatrix Spin3::Sp (  (SpinMatrix() = Spin3::Sx + iii * Spin3::Sy) );
+const Spin3::SpinMatrix Spin3::Sm (  (SpinMatrix() = Spin3::Sx - iii * Spin3::Sy) );
+
+struct Spin3p5 { 
+    enum { matrix_size = 8 };
+    typedef Matrix<complexg, matrix_size, matrix_size>  SpinMatrix;
+    static const SpinMatrix Sx;
+    static const SpinMatrix Sy;
+    static const SpinMatrix Sz;
+    static const SpinMatrix Id;
+    static const SpinMatrix Sp;
+    static const SpinMatrix Sm;
+};
+const Spin3p5::SpinMatrix Spin3p5::Sx ( ( (SpinMatrix() <<  0, sqrt(7.)/2., 0, 0, 0, 0, 0, 0, sqrt(7.)/2., 0, sqrt(12.)/2., 0, 0, 0, 0, 0, 0, sqrt(12.)/2., 0, sqrt(15.)/2., 0, 0, 0, 0, 0, 0, sqrt(15.)/2., 0, 2., 0, 0, 0, 0, 0, 0, 2., 0, sqrt(15.)/2., 0, 0, 0, 0, 0, 0, sqrt(15.)/2., 0, sqrt(12.)/2., 0, 0, 0, 0, 0, 0, sqrt(12.)/2., 0, sqrt(7.)/2., 0, 0, 0, 0, 0, 0, sqrt(7.)/2., 0).finished() ) );
+const Spin3p5::SpinMatrix Spin3p5::Sy ( ( (SpinMatrix() <<  0, iii * sqrt(7.)/2., 0, 0, 0, 0, 0, 0, -iii * sqrt(7.)/2., 0, iii * sqrt(12.)/2., 0, 0, 0, 0, 0, 0, -iii * sqrt(12.)/2., 0, iii * sqrt(15.)/2., 0, 0, 0, 0, 0, 0, -iii * sqrt(15.)/2., 0, iii * 2., 0, 0, 0, 0, 0, 0, -iii * 2., 0, iii * sqrt(15.)/2., 0, 0, 0, 0, 0, 0, -iii * sqrt(15.)/2., 0, iii * sqrt(12.)/2., 0, 0, 0, 0, 0, 0, -iii * sqrt(12.)/2., 0, iii * sqrt(7.)/2., 0, 0, 0, 0, 0, 0, -iii * sqrt(7.)/2., 0).finished() ) );
+const Spin3p5::SpinMatrix Spin3p5::Sz ( ( (SpinMatrix() <<  7./2., 0, 0, 0, 0, 0, 0, 0, 0, 5./2., 0, 0, 0, 0, 0, 0, 0, 0, 3./2., 0, 0, 0, 0, 0, 0, 0, 0, 1./2., 0, 0, 0, 0, 0, 0, 0, 0, -1./2., 0, 0, 0, 0, 0, 0, 0, 0, -3./2., 0, 0, 0, 0, 0, 0, 0, 0, -5./2., 0, 0, 0, 0, 0, 0, 0, 0, -7./2.).finished() ) );
+const Spin3p5::SpinMatrix Spin3p5::Id (  (SpinMatrix() = SpinMatrix::Identity()) );
+const Spin3p5::SpinMatrix Spin3p5::Sp (  (SpinMatrix() = Spin3p5::Sx + iii * Spin3p5::Sy) );
+const Spin3p5::SpinMatrix Spin3p5::Sm (  (SpinMatrix() = Spin3p5::Sx - iii * Spin3p5::Sy) );
+
+struct Spin4 { 
+    enum { matrix_size = 9 };
+    typedef Matrix<complexg, matrix_size, matrix_size>  SpinMatrix;
+    static const SpinMatrix Sx;
+    static const SpinMatrix Sy;
+    static const SpinMatrix Sz;
+    static const SpinMatrix Id;
+    static const SpinMatrix Sp;
+    static const SpinMatrix Sm;
+};
+const Spin4::SpinMatrix Spin4::Sx ( ( (SpinMatrix() <<  0, sqrt(4./2.), 0, 0, 0, 0, 0, 0, 0, sqrt(4./2.), 0, sqrt(7./2.), 0, 0, 0, 0, 0, 0, 0, sqrt(7./2.), 0, sqrt(9./2.), 0, 0, 0, 0, 0, 0, 0, sqrt(9./2.), 0, sqrt(10./2.), 0, 0, 0, 0, 0, 0, 0, sqrt(10./2.), 0, sqrt(10./2.), 0, 0, 0, 0, 0, 0, 0, sqrt(10./2.), 0, sqrt(9./2.), 0, 0, 0, 0, 0, 0, 0, sqrt(9./2.), 0, sqrt(7./2.), 0, 0, 0, 0, 0, 0, 0, sqrt(7./2.), 0, sqrt(4./2.), 0, 0, 0, 0, 0, 0, 0, sqrt(4./2.), 0).finished() ) );
+const Spin4::SpinMatrix Spin4::Sy ( ( (SpinMatrix() <<  0, iii * sqrt(4./2.), 0, 0, 0, 0, 0, 0, 0, -iii * sqrt(4./2.), 0, iii * sqrt(7./2.), 0, 0, 0, 0, 0, 0, 0, -iii * sqrt(7./2.), 0, iii * sqrt(9./2.), 0, 0, 0, 0, 0, 0, 0, -iii * sqrt(9./2.), 0, iii * sqrt(10./2.), 0, 0, 0, 0, 0, 0, 0, -iii * sqrt(10./2.), 0, iii * sqrt(10./2.), 0, 0, 0, 0, 0, 0, 0, -iii * sqrt(10./2.), 0, iii * sqrt(9./2.), 0, 0, 0, 0, 0, 0, 0, -iii * sqrt(9./2.), 0, iii * sqrt(7./2.), 0, 0, 0, 0, 0, 0, 0, -iii * sqrt(7./2.), 0, iii * sqrt(4./2.), 0, 0, 0, 0, 0, 0, 0, -iii * sqrt(4./2.), 0).finished() ) );
+const Spin4::SpinMatrix Spin4::Sz ( ( (SpinMatrix() <<  4, 0, 0, 0, 0, 0, 0, 0, 0, 0, 3, 0, 0, 0, 0, 0, 0, 0, 0, 0, 2, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, -1, 0, 0, 0, 0, 0, 0, 0, 0, 0, -2, 0, 0, 0, 0, 0, 0, 0, 0, 0, -3, 0, 0, 0, 0, 0, 0, 0, 0, 0, -4).finished() ) );
+const Spin4::SpinMatrix Spin4::Id (  (SpinMatrix() = SpinMatrix::Identity()) );
+const Spin4::SpinMatrix Spin4::Sp (  (SpinMatrix() = Spin4::Sx + iii * Spin4::Sy) );
+const Spin4::SpinMatrix Spin4::Sm (  (SpinMatrix() = Spin4::Sx - iii * Spin4::Sy) );
+
+struct Spin4p5 { 
+    enum { matrix_size = 10 };
+    typedef Matrix<complexg, matrix_size, matrix_size>  SpinMatrix;
+    static const SpinMatrix Sx;
+    static const SpinMatrix Sy;
+    static const SpinMatrix Sz;
+    static const SpinMatrix Id;
+    static const SpinMatrix Sp;
+    static const SpinMatrix Sm;
+};
+const Spin4p5::SpinMatrix Spin4p5::Sx ( ( (SpinMatrix() <<  0, 3./2., 0, 0, 0, 0, 0, 0, 0, 0, 3./2., 0, 2., 0, 0, 0, 0, 0, 0, 0, 0, 2., 0, sqrt(21.)/2., 0, 0, 0, 0, 0, 0, 0, 0, sqrt(21.)/2., 0, sqrt(24.)/2., 0, 0, 0, 0, 0, 0, 0, 0, sqrt(24.)/2., 0, 5./2., 0, 0, 0, 0, 0, 0, 0, 0, 5./2., 0, sqrt(24.)/2., 0, 0, 0, 0, 0, 0, 0, 0, sqrt(24.)/2., 0, sqrt(21.)/2., 0, 0, 0, 0, 0, 0, 0, 0, sqrt(21.)/2., 0, 2., 0, 0, 0, 0, 0, 0, 0, 0, 2., 0, 3./2., 0, 0, 0, 0, 0, 0, 0, 0, 3./2., 0).finished() ) );
+const Spin4p5::SpinMatrix Spin4p5::Sy ( ( (SpinMatrix() <<  0, iii * 3./2., 0, 0, 0, 0, 0, 0, 0, 0, -iii * 3./2., 0, iii * 2., 0, 0, 0, 0, 0, 0, 0, 0, -iii * 2., 0, iii * sqrt(21.)/2., 0, 0, 0, 0, 0, 0, 0, 0, -iii * sqrt(21.)/2., 0, iii * sqrt(24.)/2., 0, 0, 0, 0, 0, 0, 0, 0, -iii * sqrt(24.)/2., 0, iii * 5./2., 0, 0, 0, 0, 0, 0, 0, 0, -iii * 5./2., 0, iii * sqrt(24.)/2., 0, 0, 0, 0, 0, 0, 0, 0, -iii * sqrt(24.)/2., 0, iii * sqrt(21.)/2., 0, 0, 0, 0, 0, 0, 0, 0, -iii * sqrt(21.)/2., 0, iii * 2., 0, 0, 0, 0, 0, 0, 0, 0, -iii * 2., 0, iii * 3./2., 0, 0, 0, 0, 0, 0, 0, 0, -iii * 3./2., 0).finished() ) );
+const Spin4p5::SpinMatrix Spin4p5::Sz ( ( (SpinMatrix() <<  9./2., 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 7./2., 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 5./2., 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 3./2., 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1./2., 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, -1./2., 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, -3./2., 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, -5./2., 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, -7./2., 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, -9./2.).finished() ) );
+const Spin4p5::SpinMatrix Spin4p5::Id (  (SpinMatrix() = SpinMatrix::Identity()) );
+const Spin4p5::SpinMatrix Spin4p5::Sp (  (SpinMatrix() = Spin4p5::Sx + iii * Spin4p5::Sy) );
+const Spin4p5::SpinMatrix Spin4p5::Sm (  (SpinMatrix() = Spin4p5::Sx - iii * Spin4p5::Sy) );
+
+struct Spin5 { 
+    enum { matrix_size = 11 };
+    typedef Matrix<complexg, matrix_size, matrix_size>  SpinMatrix;
+    static const SpinMatrix Sx;
+    static const SpinMatrix Sy;
+    static const SpinMatrix Sz;
+    static const SpinMatrix Id;
+    static const SpinMatrix Sp;
+    static const SpinMatrix Sm;
+};
+const Spin5::SpinMatrix Spin5::Sx ( ( (SpinMatrix() <<  0, sqrt(5./2.), 0, 0, 0, 0, 0, 0, 0, 0, 0, sqrt(5./2.), 0, sqrt(9./2.), 0, 0, 0, 0, 0, 0, 0, 0, 0, sqrt(9./2.), 0, sqrt(12./2.), 0, 0, 0, 0, 0, 0, 0, 0, 0, sqrt(12./2.), 0, sqrt(14./2.), 0, 0, 0, 0, 0, 0, 0, 0, 0, sqrt(14./2.), 0, sqrt(15./2.), 0, 0, 0, 0, 0, 0, 0, 0, 0, sqrt(15./2.), 0, sqrt(15./2.), 0, 0, 0, 0, 0, 0, 0, 0, 0, sqrt(15./2.), 0, sqrt(14./2.), 0, 0, 0, 0, 0, 0, 0, 0, 0, sqrt(14./2.), 0, sqrt(12./2.), 0, 0, 0, 0, 0, 0, 0, 0, 0, sqrt(12./2.), 0, sqrt(9./2.), 0, 0, 0, 0, 0, 0, 0, 0, 0, sqrt(9./2.), 0, sqrt(5./2.), 0, 0, 0, 0, 0, 0, 0, 0, 0, sqrt(5./2.), 0).finished() ) );
+const Spin5::SpinMatrix Spin5::Sy ( ( (SpinMatrix() <<  0, iii * sqrt(5./2.), 0, 0, 0, 0, 0, 0, 0, 0, 0, -iii * sqrt(5./2.), 0, iii * sqrt(9./2.), 0, 0, 0, 0, 0, 0, 0, 0, 0, -iii * sqrt(9./2.), 0, iii * sqrt(12./2.), 0, 0, 0, 0, 0, 0, 0, 0, 0, -iii * sqrt(12./2.), 0, iii * sqrt(14./2.), 0, 0, 0, 0, 0, 0, 0, 0, 0, -iii * sqrt(14./2.), 0, iii * sqrt(15./2.), 0, 0, 0, 0, 0, 0, 0, 0, 0, -iii * sqrt(15./2.), 0, iii * sqrt(15./2.), 0, 0, 0, 0, 0, 0, 0, 0, 0, -iii * sqrt(15./2.), 0, iii * sqrt(14./2.), 0, 0, 0, 0, 0, 0, 0, 0, 0, -iii * sqrt(14./2.), 0, iii * sqrt(12./2.), 0, 0, 0, 0, 0, 0, 0, 0, 0, -iii * sqrt(12./2.), 0, iii * sqrt(9./2.), 0, 0, 0, 0, 0, 0, 0, 0, 0, -iii * sqrt(9./2.), 0, iii * sqrt(5./2.), 0, 0, 0, 0, 0, 0, 0, 0, 0, -iii * sqrt(5./2.), 0).finished() ) );
+const Spin5::SpinMatrix Spin5::Sz ( ( (SpinMatrix() <<  5, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 4, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 3, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 2, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, -1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, -2, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, -3, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, -4, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, -5).finished() ) );
+const Spin5::SpinMatrix Spin5::Id (  (SpinMatrix() = SpinMatrix::Identity()) );
+const Spin5::SpinMatrix Spin5::Sp (  (SpinMatrix() = Spin5::Sx + iii * Spin5::Sy) );
+const Spin5::SpinMatrix Spin5::Sm (  (SpinMatrix() = Spin5::Sx - iii * Spin5::Sy) );
+
+typedef SingleSpin<Spin0p5> SingleSpin0p5;
+typedef SingleSpin<Spin1> SingleSpin1;
+typedef SingleSpin<Spin1p5> SingleSpin1p5;
+typedef SingleSpin<Spin2> SingleSpin2;
+typedef SingleSpin<Spin2p5> SingleSpin2p5;
+typedef SingleSpin<Spin3> SingleSpin3;
+typedef SingleSpin<Spin3p5> SingleSpin3p5;
+typedef SingleSpin<Spin4> SingleSpin4;
+typedef SingleSpin<Spin4p5> SingleSpin4p5;
+typedef SingleSpin<Spin5> SingleSpin5;
+
 
 
 #ifdef EXAMPLE_MAINS
@@ -1398,8 +1876,8 @@ int main_odmr()
 	  triplet_pair.diag();
 
 	  odmr_from_triplets.update_from_spin_hamiltonian();
-	  //	  odmr_from_triplets.load_rho0_thermal(10.0);
-	  odmr_from_triplets.load_rho0_from_singlet();
+	  odmr_from_triplets.load_rho0_thermal(10.0);
+	  //	  odmr_from_triplets.load_rho0_from_singlet();
 	  odmr_from_triplets.gamma = 3e-3;
 	  odmr_from_triplets.gamma_diag = 3e-3;
 
