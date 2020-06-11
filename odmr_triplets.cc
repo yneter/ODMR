@@ -1415,7 +1415,6 @@ struct HFE : public HFE_SpinTuple {
 
 };
 
-
 struct Spin0p5 { 
     enum { matrix_size = 2 };
     typedef Matrix<complexg, matrix_size, matrix_size>  SpinMatrix;
@@ -1585,6 +1584,8 @@ const Spin5::SpinMatrix Spin5::Sz ( ( (SpinMatrix() <<  5, 0, 0, 0, 0, 0, 0, 0, 
 const Spin5::SpinMatrix Spin5::Id (  (SpinMatrix() = SpinMatrix::Identity()) );
 const Spin5::SpinMatrix Spin5::Sp (  (SpinMatrix() = Spin5::Sx + iii * Spin5::Sy) );
 const Spin5::SpinMatrix Spin5::Sm (  (SpinMatrix() = Spin5::Sx - iii * Spin5::Sy) );
+
+
 
 typedef SingleSpin<Spin0p5> SingleSpin0p5;
 typedef SingleSpin<Spin1> SingleSpin1;
