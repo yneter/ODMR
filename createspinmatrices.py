@@ -16,7 +16,7 @@ def print_Sz_matrix(N) :
     else:
         S = "%d" % ( (N-1)/2 )
     matrixstring = matrix_name(N)
-    sys.stdout.write("const %s::SpinMatrix %s::Sz ( ( (SpinMatrix() << " % (matrixstring, matrixstring))
+    sys.stdout.write("const %s::SpinMatrixReal %s::Sz ( ( (SpinMatrixReal() << " % (matrixstring, matrixstring))
     for n in range(N) : 
         for m in range(N):
             if (m != n):
@@ -52,9 +52,9 @@ def print_Sxy_matrix(N, Sx = True) :
         S = "%d" % ( (N-1)/2 )
     matrixstring = matrix_name(N)
     if Sx:
-        sys.stdout.write("const %s::SpinMatrix %s::Sx ( ( (SpinMatrix() << " % (matrixstring, matrixstring))
+        sys.stdout.write("const %s::SpinMatrixReal %s::Sx ( ( (SpinMatrixReal() << " % (matrixstring, matrixstring))
     else :
-        sys.stdout.write("const %s::SpinMatrix %s::Sy ( ( (SpinMatrix() << " % (matrixstring, matrixstring))
+        sys.stdout.write("const %s::SpinMatrixReal %s::iSy ( ( (SpinMatrixReal() << " % (matrixstring, matrixstring))
 
     for n in range(N) : 
         for m in range(N):
@@ -69,10 +69,8 @@ def print_Sxy_matrix(N, Sx = True) :
                     K = int(S*(S+1)-Mz*Nz)
                     if K != 0:
                         if Sx == False:
-                            if (m + 1 == n): 
-                                sys.stdout.write(" -iii *")
-                            else: 
-                                sys.stdout.write(" iii *")                                
+                            if (m + 1 != n): 
+                                sys.stdout.write(" -")                                
                         sk = isqrt(K)
                         if sk*sk != K: 
                             if K % 2 != 0:
@@ -94,10 +92,8 @@ def print_Sxy_matrix(N, Sx = True) :
                     K4 = int(S2*(S2+2)-Mz2*Nz2)
                     if K4 != 0:
                         if Sx == False:
-                            if (m + 1 == n): 
-                                sys.stdout.write(" -iii *")
-                            else: 
-                                sys.stdout.write(" iii *")                                
+                            if (m + 1 != n): 
+                                sys.stdout.write(" -")                                
                         sk2 = isqrt(K4)
                         if sk2*sk2 != K4: 
                             if (K4 % 4) == 0:
@@ -123,23 +119,26 @@ def print_Sxy_matrix(N, Sx = True) :
 
 def print_Id(N) : 
     matrixstring = matrix_name(N)
-    print("const %s::SpinMatrix %s::Id (  (SpinMatrix() = SpinMatrix::Identity()) );" % (matrixstring,matrixstring) )
+    print("const %s::SpinMatrixReal %s::Id (  (SpinMatrixReal() = SpinMatrixReal::Identity()) );" % (matrixstring,matrixstring) )
 
-def print_SpSm(N) : 
+def print_SpSmSy(N) : 
     matrixstring = matrix_name(N)
-    print("const %s::SpinMatrix %s::Sp (  (SpinMatrix() = %s::Sx + iii * %s::Sy) );" % (matrixstring,matrixstring,matrixstring,matrixstring) )
-    print("const %s::SpinMatrix %s::Sm (  (SpinMatrix() = %s::Sx - iii * %s::Sy) );" % (matrixstring,matrixstring,matrixstring,matrixstring) )
+    print("const %s::SpinMatrixReal %s::Sp (  (SpinMatrixReal() = %s::Sx + %s::iSy) );" % (matrixstring,matrixstring,matrixstring,matrixstring) )
+    print("const %s::SpinMatrixReal %s::Sm (  (SpinMatrixReal() = %s::Sx - %s::iSy) );" % (matrixstring,matrixstring,matrixstring,matrixstring) )
+    print("const %s::SpinMatrix %s::Sy (  (SpinMatrix() = -iii * %s::iSy) );" % (matrixstring,matrixstring,matrixstring) )
 
 def print_header(N):
     print("""struct %s { 
     enum { matrix_size = %d };
     typedef Matrix<complexg, matrix_size, matrix_size>  SpinMatrix;
-    static const SpinMatrix Sx;
+    typedef Matrix<double, matrix_size, matrix_size>  SpinMatrixReal;
+    static const SpinMatrixReal Sx;
+    static const SpinMatrixReal iSy;
     static const SpinMatrix Sy;
-    static const SpinMatrix Sz;
-    static const SpinMatrix Id;
-    static const SpinMatrix Sp;
-    static const SpinMatrix Sm;
+    static const SpinMatrixReal Sz;
+    static const SpinMatrixReal Id;
+    static const SpinMatrixReal Sp;
+    static const SpinMatrixReal Sm;
 };""" % (matrix_name(N), N))
 
 Nmax = 12
@@ -149,7 +148,7 @@ for N in range(2, Nmax):
     print_Sxy_matrix(N, Sx=False)
     print_Sz_matrix(N)
     print_Id(N)
-    print_SpSm(N)
+    print_SpSmSy(N)
     print("")
 
 

@@ -184,21 +184,208 @@ public :
 };
 
 
-
-
-struct PauliTripletMatrices { 
-    typedef Matrix3cd SpinMatrix;
-    static const SpinMatrix Sx;
+struct Spin0p5 { 
+    enum { matrix_size = 2 };
+    typedef Matrix<complexg, matrix_size, matrix_size>  SpinMatrix;
+    typedef Matrix<double, matrix_size, matrix_size>  SpinMatrixReal;
+    static const SpinMatrixReal Sx;
+    static const SpinMatrixReal iSy;
     static const SpinMatrix Sy;
-    static const SpinMatrix Sz;
-    static const SpinMatrix Id;
-    enum { matrix_size = 3 };
+    static const SpinMatrixReal Sz;
+    static const SpinMatrixReal Id;
+    static const SpinMatrixReal Sp;
+    static const SpinMatrixReal Sm;
 };
-const PauliTripletMatrices::SpinMatrix PauliTripletMatrices::Sx ( (SpinMatrix() << 0.0, 1.0, 0.0, 1.0, 0.0, 1.0, 0.0, 1.0, 0.0).finished()/sqrt(2.0) );
-const PauliTripletMatrices::SpinMatrix PauliTripletMatrices::Sy ( -iii * (SpinMatrix() << 0.0, 1.0, 0.0, -1.0, 0.0, 1.0, 0.0, -1.0, 0.0).finished()/sqrt(2.0) );
-const PauliTripletMatrices::SpinMatrix PauliTripletMatrices::Sz ( ( (SpinMatrix() << 1.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, -1.0).finished() ) );
-const PauliTripletMatrices::SpinMatrix PauliTripletMatrices::Id (  (SpinMatrix() = SpinMatrix::Identity()) );
+const Spin0p5::SpinMatrixReal Spin0p5::Sx ( ( (SpinMatrixReal() <<  0, 1./2., 1./2., 0).finished() ) );
+const Spin0p5::SpinMatrixReal Spin0p5::iSy ( ( (SpinMatrixReal() <<  0, - 1./2., 1./2., 0).finished() ) );
+const Spin0p5::SpinMatrixReal Spin0p5::Sz ( ( (SpinMatrixReal() <<  1./2., 0, 0, -1./2.).finished() ) );
+const Spin0p5::SpinMatrixReal Spin0p5::Id (  (SpinMatrixReal() = SpinMatrixReal::Identity()) );
+const Spin0p5::SpinMatrixReal Spin0p5::Sp (  (SpinMatrixReal() = Spin0p5::Sx + Spin0p5::iSy) );
+const Spin0p5::SpinMatrixReal Spin0p5::Sm (  (SpinMatrixReal() = Spin0p5::Sx - Spin0p5::iSy) );
+const Spin0p5::SpinMatrix Spin0p5::Sy (  (SpinMatrix() = -iii * Spin0p5::iSy) );
 
+struct Spin1 { 
+    enum { matrix_size = 3 };
+    typedef Matrix<complexg, matrix_size, matrix_size>  SpinMatrix;
+    typedef Matrix<double, matrix_size, matrix_size>  SpinMatrixReal;
+    static const SpinMatrixReal Sx;
+    static const SpinMatrixReal iSy;
+    static const SpinMatrix Sy;
+    static const SpinMatrixReal Sz;
+    static const SpinMatrixReal Id;
+    static const SpinMatrixReal Sp;
+    static const SpinMatrixReal Sm;
+};
+const Spin1::SpinMatrixReal Spin1::Sx ( ( (SpinMatrixReal() <<  0, sqrt(1./2.), 0, sqrt(1./2.), 0, sqrt(1./2.), 0, sqrt(1./2.), 0).finished() ) );
+const Spin1::SpinMatrixReal Spin1::iSy ( ( (SpinMatrixReal() <<  0, - sqrt(1./2.), 0, sqrt(1./2.), 0, - sqrt(1./2.), 0, sqrt(1./2.), 0).finished() ) );
+const Spin1::SpinMatrixReal Spin1::Sz ( ( (SpinMatrixReal() <<  1, 0, 0, 0, 0, 0, 0, 0, -1).finished() ) );
+const Spin1::SpinMatrixReal Spin1::Id (  (SpinMatrixReal() = SpinMatrixReal::Identity()) );
+const Spin1::SpinMatrixReal Spin1::Sp (  (SpinMatrixReal() = Spin1::Sx + Spin1::iSy) );
+const Spin1::SpinMatrixReal Spin1::Sm (  (SpinMatrixReal() = Spin1::Sx - Spin1::iSy) );
+const Spin1::SpinMatrix Spin1::Sy (  (SpinMatrix() = -iii * Spin1::iSy) );
+
+struct Spin1p5 { 
+    enum { matrix_size = 4 };
+    typedef Matrix<complexg, matrix_size, matrix_size>  SpinMatrix;
+    typedef Matrix<double, matrix_size, matrix_size>  SpinMatrixReal;
+    static const SpinMatrixReal Sx;
+    static const SpinMatrixReal iSy;
+    static const SpinMatrix Sy;
+    static const SpinMatrixReal Sz;
+    static const SpinMatrixReal Id;
+    static const SpinMatrixReal Sp;
+    static const SpinMatrixReal Sm;
+};
+const Spin1p5::SpinMatrixReal Spin1p5::Sx ( ( (SpinMatrixReal() <<  0, sqrt(3.)/2., 0, 0, sqrt(3.)/2., 0, 1., 0, 0, 1., 0, sqrt(3.)/2., 0, 0, sqrt(3.)/2., 0).finished() ) );
+const Spin1p5::SpinMatrixReal Spin1p5::iSy ( ( (SpinMatrixReal() <<  0, - sqrt(3.)/2., 0, 0, sqrt(3.)/2., 0, - 1., 0, 0, 1., 0, - sqrt(3.)/2., 0, 0, sqrt(3.)/2., 0).finished() ) );
+const Spin1p5::SpinMatrixReal Spin1p5::Sz ( ( (SpinMatrixReal() <<  3./2., 0, 0, 0, 0, 1./2., 0, 0, 0, 0, -1./2., 0, 0, 0, 0, -3./2.).finished() ) );
+const Spin1p5::SpinMatrixReal Spin1p5::Id (  (SpinMatrixReal() = SpinMatrixReal::Identity()) );
+const Spin1p5::SpinMatrixReal Spin1p5::Sp (  (SpinMatrixReal() = Spin1p5::Sx + Spin1p5::iSy) );
+const Spin1p5::SpinMatrixReal Spin1p5::Sm (  (SpinMatrixReal() = Spin1p5::Sx - Spin1p5::iSy) );
+const Spin1p5::SpinMatrix Spin1p5::Sy (  (SpinMatrix() = -iii * Spin1p5::iSy) );
+
+struct Spin2 { 
+    enum { matrix_size = 5 };
+    typedef Matrix<complexg, matrix_size, matrix_size>  SpinMatrix;
+    typedef Matrix<double, matrix_size, matrix_size>  SpinMatrixReal;
+    static const SpinMatrixReal Sx;
+    static const SpinMatrixReal iSy;
+    static const SpinMatrix Sy;
+    static const SpinMatrixReal Sz;
+    static const SpinMatrixReal Id;
+    static const SpinMatrixReal Sp;
+    static const SpinMatrixReal Sm;
+};
+const Spin2::SpinMatrixReal Spin2::Sx ( ( (SpinMatrixReal() <<  0, 1., 0, 0, 0, 1., 0, sqrt(3./2.), 0, 0, 0, sqrt(3./2.), 0, sqrt(3./2.), 0, 0, 0, sqrt(3./2.), 0, 1., 0, 0, 0, 1., 0).finished() ) );
+const Spin2::SpinMatrixReal Spin2::iSy ( ( (SpinMatrixReal() <<  0, - 1., 0, 0, 0, 1., 0, - sqrt(3./2.), 0, 0, 0, sqrt(3./2.), 0, - sqrt(3./2.), 0, 0, 0, sqrt(3./2.), 0, - 1., 0, 0, 0, 1., 0).finished() ) );
+const Spin2::SpinMatrixReal Spin2::Sz ( ( (SpinMatrixReal() <<  2, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, -1, 0, 0, 0, 0, 0, -2).finished() ) );
+const Spin2::SpinMatrixReal Spin2::Id (  (SpinMatrixReal() = SpinMatrixReal::Identity()) );
+const Spin2::SpinMatrixReal Spin2::Sp (  (SpinMatrixReal() = Spin2::Sx + Spin2::iSy) );
+const Spin2::SpinMatrixReal Spin2::Sm (  (SpinMatrixReal() = Spin2::Sx - Spin2::iSy) );
+const Spin2::SpinMatrix Spin2::Sy (  (SpinMatrix() = -iii * Spin2::iSy) );
+
+struct Spin2p5 { 
+    enum { matrix_size = 6 };
+    typedef Matrix<complexg, matrix_size, matrix_size>  SpinMatrix;
+    typedef Matrix<double, matrix_size, matrix_size>  SpinMatrixReal;
+    static const SpinMatrixReal Sx;
+    static const SpinMatrixReal iSy;
+    static const SpinMatrix Sy;
+    static const SpinMatrixReal Sz;
+    static const SpinMatrixReal Id;
+    static const SpinMatrixReal Sp;
+    static const SpinMatrixReal Sm;
+};
+const Spin2p5::SpinMatrixReal Spin2p5::Sx ( ( (SpinMatrixReal() <<  0, sqrt(5.)/2., 0, 0, 0, 0, sqrt(5.)/2., 0, sqrt(8.)/2., 0, 0, 0, 0, sqrt(8.)/2., 0, 3./2., 0, 0, 0, 0, 3./2., 0, sqrt(8.)/2., 0, 0, 0, 0, sqrt(8.)/2., 0, sqrt(5.)/2., 0, 0, 0, 0, sqrt(5.)/2., 0).finished() ) );
+const Spin2p5::SpinMatrixReal Spin2p5::iSy ( ( (SpinMatrixReal() <<  0, - sqrt(5.)/2., 0, 0, 0, 0, sqrt(5.)/2., 0, - sqrt(8.)/2., 0, 0, 0, 0, sqrt(8.)/2., 0, - 3./2., 0, 0, 0, 0, 3./2., 0, - sqrt(8.)/2., 0, 0, 0, 0, sqrt(8.)/2., 0, - sqrt(5.)/2., 0, 0, 0, 0, sqrt(5.)/2., 0).finished() ) );
+const Spin2p5::SpinMatrixReal Spin2p5::Sz ( ( (SpinMatrixReal() <<  5./2., 0, 0, 0, 0, 0, 0, 3./2., 0, 0, 0, 0, 0, 0, 1./2., 0, 0, 0, 0, 0, 0, -1./2., 0, 0, 0, 0, 0, 0, -3./2., 0, 0, 0, 0, 0, 0, -5./2.).finished() ) );
+const Spin2p5::SpinMatrixReal Spin2p5::Id (  (SpinMatrixReal() = SpinMatrixReal::Identity()) );
+const Spin2p5::SpinMatrixReal Spin2p5::Sp (  (SpinMatrixReal() = Spin2p5::Sx + Spin2p5::iSy) );
+const Spin2p5::SpinMatrixReal Spin2p5::Sm (  (SpinMatrixReal() = Spin2p5::Sx - Spin2p5::iSy) );
+const Spin2p5::SpinMatrix Spin2p5::Sy (  (SpinMatrix() = -iii * Spin2p5::iSy) );
+
+struct Spin3 { 
+    enum { matrix_size = 7 };
+    typedef Matrix<complexg, matrix_size, matrix_size>  SpinMatrix;
+    typedef Matrix<double, matrix_size, matrix_size>  SpinMatrixReal;
+    static const SpinMatrixReal Sx;
+    static const SpinMatrixReal iSy;
+    static const SpinMatrix Sy;
+    static const SpinMatrixReal Sz;
+    static const SpinMatrixReal Id;
+    static const SpinMatrixReal Sp;
+    static const SpinMatrixReal Sm;
+};
+const Spin3::SpinMatrixReal Spin3::Sx ( ( (SpinMatrixReal() <<  0, sqrt(3./2.), 0, 0, 0, 0, 0, sqrt(3./2.), 0, sqrt(5./2.), 0, 0, 0, 0, 0, sqrt(5./2.), 0, sqrt(6./2.), 0, 0, 0, 0, 0, sqrt(6./2.), 0, sqrt(6./2.), 0, 0, 0, 0, 0, sqrt(6./2.), 0, sqrt(5./2.), 0, 0, 0, 0, 0, sqrt(5./2.), 0, sqrt(3./2.), 0, 0, 0, 0, 0, sqrt(3./2.), 0).finished() ) );
+const Spin3::SpinMatrixReal Spin3::iSy ( ( (SpinMatrixReal() <<  0, - sqrt(3./2.), 0, 0, 0, 0, 0, sqrt(3./2.), 0, - sqrt(5./2.), 0, 0, 0, 0, 0, sqrt(5./2.), 0, - sqrt(6./2.), 0, 0, 0, 0, 0, sqrt(6./2.), 0, - sqrt(6./2.), 0, 0, 0, 0, 0, sqrt(6./2.), 0, - sqrt(5./2.), 0, 0, 0, 0, 0, sqrt(5./2.), 0, - sqrt(3./2.), 0, 0, 0, 0, 0, sqrt(3./2.), 0).finished() ) );
+const Spin3::SpinMatrixReal Spin3::Sz ( ( (SpinMatrixReal() <<  3, 0, 0, 0, 0, 0, 0, 0, 2, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, -1, 0, 0, 0, 0, 0, 0, 0, -2, 0, 0, 0, 0, 0, 0, 0, -3).finished() ) );
+const Spin3::SpinMatrixReal Spin3::Id (  (SpinMatrixReal() = SpinMatrixReal::Identity()) );
+const Spin3::SpinMatrixReal Spin3::Sp (  (SpinMatrixReal() = Spin3::Sx + Spin3::iSy) );
+const Spin3::SpinMatrixReal Spin3::Sm (  (SpinMatrixReal() = Spin3::Sx - Spin3::iSy) );
+const Spin3::SpinMatrix Spin3::Sy (  (SpinMatrix() = -iii * Spin3::iSy) );
+
+struct Spin3p5 { 
+    enum { matrix_size = 8 };
+    typedef Matrix<complexg, matrix_size, matrix_size>  SpinMatrix;
+    typedef Matrix<double, matrix_size, matrix_size>  SpinMatrixReal;
+    static const SpinMatrixReal Sx;
+    static const SpinMatrixReal iSy;
+    static const SpinMatrix Sy;
+    static const SpinMatrixReal Sz;
+    static const SpinMatrixReal Id;
+    static const SpinMatrixReal Sp;
+    static const SpinMatrixReal Sm;
+};
+const Spin3p5::SpinMatrixReal Spin3p5::Sx ( ( (SpinMatrixReal() <<  0, sqrt(7.)/2., 0, 0, 0, 0, 0, 0, sqrt(7.)/2., 0, sqrt(12.)/2., 0, 0, 0, 0, 0, 0, sqrt(12.)/2., 0, sqrt(15.)/2., 0, 0, 0, 0, 0, 0, sqrt(15.)/2., 0, 2., 0, 0, 0, 0, 0, 0, 2., 0, sqrt(15.)/2., 0, 0, 0, 0, 0, 0, sqrt(15.)/2., 0, sqrt(12.)/2., 0, 0, 0, 0, 0, 0, sqrt(12.)/2., 0, sqrt(7.)/2., 0, 0, 0, 0, 0, 0, sqrt(7.)/2., 0).finished() ) );
+const Spin3p5::SpinMatrixReal Spin3p5::iSy ( ( (SpinMatrixReal() <<  0, - sqrt(7.)/2., 0, 0, 0, 0, 0, 0, sqrt(7.)/2., 0, - sqrt(12.)/2., 0, 0, 0, 0, 0, 0, sqrt(12.)/2., 0, - sqrt(15.)/2., 0, 0, 0, 0, 0, 0, sqrt(15.)/2., 0, - 2., 0, 0, 0, 0, 0, 0, 2., 0, - sqrt(15.)/2., 0, 0, 0, 0, 0, 0, sqrt(15.)/2., 0, - sqrt(12.)/2., 0, 0, 0, 0, 0, 0, sqrt(12.)/2., 0, - sqrt(7.)/2., 0, 0, 0, 0, 0, 0, sqrt(7.)/2., 0).finished() ) );
+const Spin3p5::SpinMatrixReal Spin3p5::Sz ( ( (SpinMatrixReal() <<  7./2., 0, 0, 0, 0, 0, 0, 0, 0, 5./2., 0, 0, 0, 0, 0, 0, 0, 0, 3./2., 0, 0, 0, 0, 0, 0, 0, 0, 1./2., 0, 0, 0, 0, 0, 0, 0, 0, -1./2., 0, 0, 0, 0, 0, 0, 0, 0, -3./2., 0, 0, 0, 0, 0, 0, 0, 0, -5./2., 0, 0, 0, 0, 0, 0, 0, 0, -7./2.).finished() ) );
+const Spin3p5::SpinMatrixReal Spin3p5::Id (  (SpinMatrixReal() = SpinMatrixReal::Identity()) );
+const Spin3p5::SpinMatrixReal Spin3p5::Sp (  (SpinMatrixReal() = Spin3p5::Sx + Spin3p5::iSy) );
+const Spin3p5::SpinMatrixReal Spin3p5::Sm (  (SpinMatrixReal() = Spin3p5::Sx - Spin3p5::iSy) );
+const Spin3p5::SpinMatrix Spin3p5::Sy (  (SpinMatrix() = -iii * Spin3p5::iSy) );
+
+struct Spin4 { 
+    enum { matrix_size = 9 };
+    typedef Matrix<complexg, matrix_size, matrix_size>  SpinMatrix;
+    typedef Matrix<double, matrix_size, matrix_size>  SpinMatrixReal;
+    static const SpinMatrixReal Sx;
+    static const SpinMatrixReal iSy;
+    static const SpinMatrix Sy;
+    static const SpinMatrixReal Sz;
+    static const SpinMatrixReal Id;
+    static const SpinMatrixReal Sp;
+    static const SpinMatrixReal Sm;
+};
+const Spin4::SpinMatrixReal Spin4::Sx ( ( (SpinMatrixReal() <<  0, sqrt(4./2.), 0, 0, 0, 0, 0, 0, 0, sqrt(4./2.), 0, sqrt(7./2.), 0, 0, 0, 0, 0, 0, 0, sqrt(7./2.), 0, sqrt(9./2.), 0, 0, 0, 0, 0, 0, 0, sqrt(9./2.), 0, sqrt(10./2.), 0, 0, 0, 0, 0, 0, 0, sqrt(10./2.), 0, sqrt(10./2.), 0, 0, 0, 0, 0, 0, 0, sqrt(10./2.), 0, sqrt(9./2.), 0, 0, 0, 0, 0, 0, 0, sqrt(9./2.), 0, sqrt(7./2.), 0, 0, 0, 0, 0, 0, 0, sqrt(7./2.), 0, sqrt(4./2.), 0, 0, 0, 0, 0, 0, 0, sqrt(4./2.), 0).finished() ) );
+const Spin4::SpinMatrixReal Spin4::iSy ( ( (SpinMatrixReal() <<  0, - sqrt(4./2.), 0, 0, 0, 0, 0, 0, 0, sqrt(4./2.), 0, - sqrt(7./2.), 0, 0, 0, 0, 0, 0, 0, sqrt(7./2.), 0, - sqrt(9./2.), 0, 0, 0, 0, 0, 0, 0, sqrt(9./2.), 0, - sqrt(10./2.), 0, 0, 0, 0, 0, 0, 0, sqrt(10./2.), 0, - sqrt(10./2.), 0, 0, 0, 0, 0, 0, 0, sqrt(10./2.), 0, - sqrt(9./2.), 0, 0, 0, 0, 0, 0, 0, sqrt(9./2.), 0, - sqrt(7./2.), 0, 0, 0, 0, 0, 0, 0, sqrt(7./2.), 0, - sqrt(4./2.), 0, 0, 0, 0, 0, 0, 0, sqrt(4./2.), 0).finished() ) );
+const Spin4::SpinMatrixReal Spin4::Sz ( ( (SpinMatrixReal() <<  4, 0, 0, 0, 0, 0, 0, 0, 0, 0, 3, 0, 0, 0, 0, 0, 0, 0, 0, 0, 2, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, -1, 0, 0, 0, 0, 0, 0, 0, 0, 0, -2, 0, 0, 0, 0, 0, 0, 0, 0, 0, -3, 0, 0, 0, 0, 0, 0, 0, 0, 0, -4).finished() ) );
+const Spin4::SpinMatrixReal Spin4::Id (  (SpinMatrixReal() = SpinMatrixReal::Identity()) );
+const Spin4::SpinMatrixReal Spin4::Sp (  (SpinMatrixReal() = Spin4::Sx + Spin4::iSy) );
+const Spin4::SpinMatrixReal Spin4::Sm (  (SpinMatrixReal() = Spin4::Sx - Spin4::iSy) );
+const Spin4::SpinMatrix Spin4::Sy (  (SpinMatrix() = -iii * Spin4::iSy) );
+
+struct Spin4p5 { 
+    enum { matrix_size = 10 };
+    typedef Matrix<complexg, matrix_size, matrix_size>  SpinMatrix;
+    typedef Matrix<double, matrix_size, matrix_size>  SpinMatrixReal;
+    static const SpinMatrixReal Sx;
+    static const SpinMatrixReal iSy;
+    static const SpinMatrix Sy;
+    static const SpinMatrixReal Sz;
+    static const SpinMatrixReal Id;
+    static const SpinMatrixReal Sp;
+    static const SpinMatrixReal Sm;
+};
+const Spin4p5::SpinMatrixReal Spin4p5::Sx ( ( (SpinMatrixReal() <<  0, 3./2., 0, 0, 0, 0, 0, 0, 0, 0, 3./2., 0, 2., 0, 0, 0, 0, 0, 0, 0, 0, 2., 0, sqrt(21.)/2., 0, 0, 0, 0, 0, 0, 0, 0, sqrt(21.)/2., 0, sqrt(24.)/2., 0, 0, 0, 0, 0, 0, 0, 0, sqrt(24.)/2., 0, 5./2., 0, 0, 0, 0, 0, 0, 0, 0, 5./2., 0, sqrt(24.)/2., 0, 0, 0, 0, 0, 0, 0, 0, sqrt(24.)/2., 0, sqrt(21.)/2., 0, 0, 0, 0, 0, 0, 0, 0, sqrt(21.)/2., 0, 2., 0, 0, 0, 0, 0, 0, 0, 0, 2., 0, 3./2., 0, 0, 0, 0, 0, 0, 0, 0, 3./2., 0).finished() ) );
+const Spin4p5::SpinMatrixReal Spin4p5::iSy ( ( (SpinMatrixReal() <<  0, - 3./2., 0, 0, 0, 0, 0, 0, 0, 0, 3./2., 0, - 2., 0, 0, 0, 0, 0, 0, 0, 0, 2., 0, - sqrt(21.)/2., 0, 0, 0, 0, 0, 0, 0, 0, sqrt(21.)/2., 0, - sqrt(24.)/2., 0, 0, 0, 0, 0, 0, 0, 0, sqrt(24.)/2., 0, - 5./2., 0, 0, 0, 0, 0, 0, 0, 0, 5./2., 0, - sqrt(24.)/2., 0, 0, 0, 0, 0, 0, 0, 0, sqrt(24.)/2., 0, - sqrt(21.)/2., 0, 0, 0, 0, 0, 0, 0, 0, sqrt(21.)/2., 0, - 2., 0, 0, 0, 0, 0, 0, 0, 0, 2., 0, - 3./2., 0, 0, 0, 0, 0, 0, 0, 0, 3./2., 0).finished() ) );
+const Spin4p5::SpinMatrixReal Spin4p5::Sz ( ( (SpinMatrixReal() <<  9./2., 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 7./2., 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 5./2., 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 3./2., 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1./2., 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, -1./2., 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, -3./2., 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, -5./2., 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, -7./2., 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, -9./2.).finished() ) );
+const Spin4p5::SpinMatrixReal Spin4p5::Id (  (SpinMatrixReal() = SpinMatrixReal::Identity()) );
+const Spin4p5::SpinMatrixReal Spin4p5::Sp (  (SpinMatrixReal() = Spin4p5::Sx + Spin4p5::iSy) );
+const Spin4p5::SpinMatrixReal Spin4p5::Sm (  (SpinMatrixReal() = Spin4p5::Sx - Spin4p5::iSy) );
+const Spin4p5::SpinMatrix Spin4p5::Sy (  (SpinMatrix() = -iii * Spin4p5::iSy) );
+
+struct Spin5 { 
+    enum { matrix_size = 11 };
+    typedef Matrix<complexg, matrix_size, matrix_size>  SpinMatrix;
+    typedef Matrix<double, matrix_size, matrix_size>  SpinMatrixReal;
+    static const SpinMatrixReal Sx;
+    static const SpinMatrixReal iSy;
+    static const SpinMatrix Sy;
+    static const SpinMatrixReal Sz;
+    static const SpinMatrixReal Id;
+    static const SpinMatrixReal Sp;
+    static const SpinMatrixReal Sm;
+};
+const Spin5::SpinMatrixReal Spin5::Sx ( ( (SpinMatrixReal() <<  0, sqrt(5./2.), 0, 0, 0, 0, 0, 0, 0, 0, 0, sqrt(5./2.), 0, sqrt(9./2.), 0, 0, 0, 0, 0, 0, 0, 0, 0, sqrt(9./2.), 0, sqrt(12./2.), 0, 0, 0, 0, 0, 0, 0, 0, 0, sqrt(12./2.), 0, sqrt(14./2.), 0, 0, 0, 0, 0, 0, 0, 0, 0, sqrt(14./2.), 0, sqrt(15./2.), 0, 0, 0, 0, 0, 0, 0, 0, 0, sqrt(15./2.), 0, sqrt(15./2.), 0, 0, 0, 0, 0, 0, 0, 0, 0, sqrt(15./2.), 0, sqrt(14./2.), 0, 0, 0, 0, 0, 0, 0, 0, 0, sqrt(14./2.), 0, sqrt(12./2.), 0, 0, 0, 0, 0, 0, 0, 0, 0, sqrt(12./2.), 0, sqrt(9./2.), 0, 0, 0, 0, 0, 0, 0, 0, 0, sqrt(9./2.), 0, sqrt(5./2.), 0, 0, 0, 0, 0, 0, 0, 0, 0, sqrt(5./2.), 0).finished() ) );
+const Spin5::SpinMatrixReal Spin5::iSy ( ( (SpinMatrixReal() <<  0, - sqrt(5./2.), 0, 0, 0, 0, 0, 0, 0, 0, 0, sqrt(5./2.), 0, - sqrt(9./2.), 0, 0, 0, 0, 0, 0, 0, 0, 0, sqrt(9./2.), 0, - sqrt(12./2.), 0, 0, 0, 0, 0, 0, 0, 0, 0, sqrt(12./2.), 0, - sqrt(14./2.), 0, 0, 0, 0, 0, 0, 0, 0, 0, sqrt(14./2.), 0, - sqrt(15./2.), 0, 0, 0, 0, 0, 0, 0, 0, 0, sqrt(15./2.), 0, - sqrt(15./2.), 0, 0, 0, 0, 0, 0, 0, 0, 0, sqrt(15./2.), 0, - sqrt(14./2.), 0, 0, 0, 0, 0, 0, 0, 0, 0, sqrt(14./2.), 0, - sqrt(12./2.), 0, 0, 0, 0, 0, 0, 0, 0, 0, sqrt(12./2.), 0, - sqrt(9./2.), 0, 0, 0, 0, 0, 0, 0, 0, 0, sqrt(9./2.), 0, - sqrt(5./2.), 0, 0, 0, 0, 0, 0, 0, 0, 0, sqrt(5./2.), 0).finished() ) );
+const Spin5::SpinMatrixReal Spin5::Sz ( ( (SpinMatrixReal() <<  5, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 4, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 3, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 2, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, -1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, -2, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, -3, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, -4, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, -5).finished() ) );
+const Spin5::SpinMatrixReal Spin5::Id (  (SpinMatrixReal() = SpinMatrixReal::Identity()) );
+const Spin5::SpinMatrixReal Spin5::Sp (  (SpinMatrixReal() = Spin5::Sx + Spin5::iSy) );
+const Spin5::SpinMatrixReal Spin5::Sm (  (SpinMatrixReal() = Spin5::Sx - Spin5::iSy) );
+const Spin5::SpinMatrix Spin5::Sy (  (SpinMatrix() = -iii * Spin5::iSy) );
+
+
+typedef Spin1 PauliTripletMatrices;
 
 struct PauliMatrices { 
     enum { matrix_size = 2 };
@@ -214,58 +401,8 @@ const PauliMatrices::SpinMatrix PauliMatrices::Sz ( ( (SpinMatrix() << 1.0, 0.0,
 const PauliMatrices::SpinMatrix PauliMatrices::Id (  (SpinMatrix() = SpinMatrix::Identity()) );
 
 
-
-struct PauliDoubletMatrices { 
-    enum { matrix_size = 2 };
-    typedef Matrix<complexg, matrix_size, matrix_size>  SpinMatrix;
-    static const SpinMatrix Sx;
-    static const SpinMatrix Sy;
-    static const SpinMatrix Sz;
-    static const SpinMatrix Id;
-};
-const PauliDoubletMatrices::SpinMatrix PauliDoubletMatrices::Sx ( ( (SpinMatrix() << 0.0, 1.0, 1.0, 0.0).finished()/2.0 ) );
-const PauliDoubletMatrices::SpinMatrix PauliDoubletMatrices::Sy ( ( (SpinMatrix() << 0.0, -iii, iii, 0.0).finished()/2.0 ) );
-const PauliDoubletMatrices::SpinMatrix PauliDoubletMatrices::Sz ( ( (SpinMatrix() << 1.0, 0.0, 0.0, -1.0).finished()/2.0 ) );
-const PauliDoubletMatrices::SpinMatrix PauliDoubletMatrices::Id (  (SpinMatrix() = SpinMatrix::Identity()) );
-
-
-
-
-
-
-struct PauliQuintetMatrices { 
-    enum { matrix_size = 5 };
-    typedef Matrix<complexg, matrix_size, matrix_size>  SpinMatrix;
-    static const SpinMatrix Sx;
-    static const SpinMatrix Sy;
-    static const SpinMatrix Sz;
-    static const SpinMatrix Id;
-};
-const PauliQuintetMatrices::SpinMatrix PauliQuintetMatrices::Sx ( ( (SpinMatrix() << 
-								     0.0, 1.0, 0.0, 0.0, 0.0, 
-								     1.0, 0.0, sqrt(3.0/2.0), 0.0, 0.0,
-								     0.0, sqrt(3.0/2.0), 0.0, sqrt(3.0/2.0), 0.0, 
-								     0.0, 0.0, sqrt(3.0/2.0), 0.0, 1.0,
-								     0.0, 0.0, 0.0, 1.0, 0.0
-								     ).finished() ) );
-const PauliQuintetMatrices::SpinMatrix PauliQuintetMatrices::Sy ( ( (SpinMatrix() << 
-								     0.0, iii, 0.0, 0.0, 0.0, 
-								     -iii, 0.0, iii * sqrt(3.0/2.0), 0.0, 0.0,
-								     0.0, -iii * sqrt(3.0/2.0), 0.0, iii * sqrt(3.0/2.0), 0.0, 
-								     0.0, 0.0, -iii * sqrt(3.0/2.0), 0.0, iii,
-								     0.0, 0.0, 0.0, -iii, 0.0
-								     ).finished() ) );
-const PauliQuintetMatrices::SpinMatrix PauliQuintetMatrices::Sz ( ( (SpinMatrix() << 
-								     2.0, 0.0, 0.0, 0.0, 0.0, 
-								     0.0, 1.0, 0.0, 0.0, 0.0,
-								     0.0, 0.0, 0.0, 0.0, 0.0, 
-								     0.0, 0.0, 0.0, -1.0, 0.0,
-								     0.0, 0.0, 0.0, 0.0, -2.0
-								     ).finished() ) );
-const PauliQuintetMatrices::SpinMatrix PauliQuintetMatrices::Id (  (SpinMatrix() = SpinMatrix::Identity()) );
-
-
-
+typedef Spin0p5 PauliDoubletMatrices;
+typedef Spin1 PauliQuintetMatrices;
 typedef complexg *TransferSpinMatrix;
 
 struct GenericSpinBase {
@@ -1415,178 +1552,6 @@ struct HFE : public HFE_SpinTuple {
 
 };
 
-struct Spin0p5 { 
-    enum { matrix_size = 2 };
-    typedef Matrix<complexg, matrix_size, matrix_size>  SpinMatrix;
-    static const SpinMatrix Sx;
-    static const SpinMatrix Sy;
-    static const SpinMatrix Sz;
-    static const SpinMatrix Id;
-    static const SpinMatrix Sp;
-    static const SpinMatrix Sm;
-};
-const Spin0p5::SpinMatrix Spin0p5::Sx ( ( (SpinMatrix() <<  0, 1./2., 1./2., 0).finished() ) );
-const Spin0p5::SpinMatrix Spin0p5::Sy ( ( (SpinMatrix() <<  0, iii * 1./2., -iii * 1./2., 0).finished() ) );
-const Spin0p5::SpinMatrix Spin0p5::Sz ( ( (SpinMatrix() <<  1./2., 0, 0, -1./2.).finished() ) );
-const Spin0p5::SpinMatrix Spin0p5::Id (  (SpinMatrix() = SpinMatrix::Identity()) );
-const Spin0p5::SpinMatrix Spin0p5::Sp (  (SpinMatrix() = Spin0p5::Sx + iii * Spin0p5::Sy) );
-const Spin0p5::SpinMatrix Spin0p5::Sm (  (SpinMatrix() = Spin0p5::Sx - iii * Spin0p5::Sy) );
-
-struct Spin1 { 
-    enum { matrix_size = 3 };
-    typedef Matrix<complexg, matrix_size, matrix_size>  SpinMatrix;
-    static const SpinMatrix Sx;
-    static const SpinMatrix Sy;
-    static const SpinMatrix Sz;
-    static const SpinMatrix Id;
-    static const SpinMatrix Sp;
-    static const SpinMatrix Sm;
-};
-const Spin1::SpinMatrix Spin1::Sx ( ( (SpinMatrix() <<  0, sqrt(1./2.), 0, sqrt(1./2.), 0, sqrt(1./2.), 0, sqrt(1./2.), 0).finished() ) );
-const Spin1::SpinMatrix Spin1::Sy ( ( (SpinMatrix() <<  0, iii * sqrt(1./2.), 0, -iii * sqrt(1./2.), 0, iii * sqrt(1./2.), 0, -iii * sqrt(1./2.), 0).finished() ) );
-const Spin1::SpinMatrix Spin1::Sz ( ( (SpinMatrix() <<  1, 0, 0, 0, 0, 0, 0, 0, -1).finished() ) );
-const Spin1::SpinMatrix Spin1::Id (  (SpinMatrix() = SpinMatrix::Identity()) );
-const Spin1::SpinMatrix Spin1::Sp (  (SpinMatrix() = Spin1::Sx + iii * Spin1::Sy) );
-const Spin1::SpinMatrix Spin1::Sm (  (SpinMatrix() = Spin1::Sx - iii * Spin1::Sy) );
-
-struct Spin1p5 { 
-    enum { matrix_size = 4 };
-    typedef Matrix<complexg, matrix_size, matrix_size>  SpinMatrix;
-    static const SpinMatrix Sx;
-    static const SpinMatrix Sy;
-    static const SpinMatrix Sz;
-    static const SpinMatrix Id;
-    static const SpinMatrix Sp;
-    static const SpinMatrix Sm;
-};
-const Spin1p5::SpinMatrix Spin1p5::Sx ( ( (SpinMatrix() <<  0, sqrt(3.)/2., 0, 0, sqrt(3.)/2., 0, 1., 0, 0, 1., 0, sqrt(3.)/2., 0, 0, sqrt(3.)/2., 0).finished() ) );
-const Spin1p5::SpinMatrix Spin1p5::Sy ( ( (SpinMatrix() <<  0, iii * sqrt(3.)/2., 0, 0, -iii * sqrt(3.)/2., 0, iii * 1., 0, 0, -iii * 1., 0, iii * sqrt(3.)/2., 0, 0, -iii * sqrt(3.)/2., 0).finished() ) );
-const Spin1p5::SpinMatrix Spin1p5::Sz ( ( (SpinMatrix() <<  3./2., 0, 0, 0, 0, 1./2., 0, 0, 0, 0, -1./2., 0, 0, 0, 0, -3./2.).finished() ) );
-const Spin1p5::SpinMatrix Spin1p5::Id (  (SpinMatrix() = SpinMatrix::Identity()) );
-const Spin1p5::SpinMatrix Spin1p5::Sp (  (SpinMatrix() = Spin1p5::Sx + iii * Spin1p5::Sy) );
-const Spin1p5::SpinMatrix Spin1p5::Sm (  (SpinMatrix() = Spin1p5::Sx - iii * Spin1p5::Sy) );
-
-struct Spin2 { 
-    enum { matrix_size = 5 };
-    typedef Matrix<complexg, matrix_size, matrix_size>  SpinMatrix;
-    static const SpinMatrix Sx;
-    static const SpinMatrix Sy;
-    static const SpinMatrix Sz;
-    static const SpinMatrix Id;
-    static const SpinMatrix Sp;
-    static const SpinMatrix Sm;
-};
-const Spin2::SpinMatrix Spin2::Sx ( ( (SpinMatrix() <<  0, 1., 0, 0, 0, 1., 0, sqrt(3./2.), 0, 0, 0, sqrt(3./2.), 0, sqrt(3./2.), 0, 0, 0, sqrt(3./2.), 0, 1., 0, 0, 0, 1., 0).finished() ) );
-const Spin2::SpinMatrix Spin2::Sy ( ( (SpinMatrix() <<  0, iii * 1., 0, 0, 0, -iii * 1., 0, iii * sqrt(3./2.), 0, 0, 0, -iii * sqrt(3./2.), 0, iii * sqrt(3./2.), 0, 0, 0, -iii * sqrt(3./2.), 0, iii * 1., 0, 0, 0, -iii * 1., 0).finished() ) );
-const Spin2::SpinMatrix Spin2::Sz ( ( (SpinMatrix() <<  2, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, -1, 0, 0, 0, 0, 0, -2).finished() ) );
-const Spin2::SpinMatrix Spin2::Id (  (SpinMatrix() = SpinMatrix::Identity()) );
-const Spin2::SpinMatrix Spin2::Sp (  (SpinMatrix() = Spin2::Sx + iii * Spin2::Sy) );
-const Spin2::SpinMatrix Spin2::Sm (  (SpinMatrix() = Spin2::Sx - iii * Spin2::Sy) );
-
-struct Spin2p5 { 
-    enum { matrix_size = 6 };
-    typedef Matrix<complexg, matrix_size, matrix_size>  SpinMatrix;
-    static const SpinMatrix Sx;
-    static const SpinMatrix Sy;
-    static const SpinMatrix Sz;
-    static const SpinMatrix Id;
-    static const SpinMatrix Sp;
-    static const SpinMatrix Sm;
-};
-const Spin2p5::SpinMatrix Spin2p5::Sx ( ( (SpinMatrix() <<  0, sqrt(5.)/2., 0, 0, 0, 0, sqrt(5.)/2., 0, sqrt(8.)/2., 0, 0, 0, 0, sqrt(8.)/2., 0, 3./2., 0, 0, 0, 0, 3./2., 0, sqrt(8.)/2., 0, 0, 0, 0, sqrt(8.)/2., 0, sqrt(5.)/2., 0, 0, 0, 0, sqrt(5.)/2., 0).finished() ) );
-const Spin2p5::SpinMatrix Spin2p5::Sy ( ( (SpinMatrix() <<  0, iii * sqrt(5.)/2., 0, 0, 0, 0, -iii * sqrt(5.)/2., 0, iii * sqrt(8.)/2., 0, 0, 0, 0, -iii * sqrt(8.)/2., 0, iii * 3./2., 0, 0, 0, 0, -iii * 3./2., 0, iii * sqrt(8.)/2., 0, 0, 0, 0, -iii * sqrt(8.)/2., 0, iii * sqrt(5.)/2., 0, 0, 0, 0, -iii * sqrt(5.)/2., 0).finished() ) );
-const Spin2p5::SpinMatrix Spin2p5::Sz ( ( (SpinMatrix() <<  5./2., 0, 0, 0, 0, 0, 0, 3./2., 0, 0, 0, 0, 0, 0, 1./2., 0, 0, 0, 0, 0, 0, -1./2., 0, 0, 0, 0, 0, 0, -3./2., 0, 0, 0, 0, 0, 0, -5./2.).finished() ) );
-const Spin2p5::SpinMatrix Spin2p5::Id (  (SpinMatrix() = SpinMatrix::Identity()) );
-const Spin2p5::SpinMatrix Spin2p5::Sp (  (SpinMatrix() = Spin2p5::Sx + iii * Spin2p5::Sy) );
-const Spin2p5::SpinMatrix Spin2p5::Sm (  (SpinMatrix() = Spin2p5::Sx - iii * Spin2p5::Sy) );
-
-struct Spin3 { 
-    enum { matrix_size = 7 };
-    typedef Matrix<complexg, matrix_size, matrix_size>  SpinMatrix;
-    static const SpinMatrix Sx;
-    static const SpinMatrix Sy;
-    static const SpinMatrix Sz;
-    static const SpinMatrix Id;
-    static const SpinMatrix Sp;
-    static const SpinMatrix Sm;
-};
-const Spin3::SpinMatrix Spin3::Sx ( ( (SpinMatrix() <<  0, sqrt(3./2.), 0, 0, 0, 0, 0, sqrt(3./2.), 0, sqrt(5./2.), 0, 0, 0, 0, 0, sqrt(5./2.), 0, sqrt(6./2.), 0, 0, 0, 0, 0, sqrt(6./2.), 0, sqrt(6./2.), 0, 0, 0, 0, 0, sqrt(6./2.), 0, sqrt(5./2.), 0, 0, 0, 0, 0, sqrt(5./2.), 0, sqrt(3./2.), 0, 0, 0, 0, 0, sqrt(3./2.), 0).finished() ) );
-const Spin3::SpinMatrix Spin3::Sy ( ( (SpinMatrix() <<  0, iii * sqrt(3./2.), 0, 0, 0, 0, 0, -iii * sqrt(3./2.), 0, iii * sqrt(5./2.), 0, 0, 0, 0, 0, -iii * sqrt(5./2.), 0, iii * sqrt(6./2.), 0, 0, 0, 0, 0, -iii * sqrt(6./2.), 0, iii * sqrt(6./2.), 0, 0, 0, 0, 0, -iii * sqrt(6./2.), 0, iii * sqrt(5./2.), 0, 0, 0, 0, 0, -iii * sqrt(5./2.), 0, iii * sqrt(3./2.), 0, 0, 0, 0, 0, -iii * sqrt(3./2.), 0).finished() ) );
-const Spin3::SpinMatrix Spin3::Sz ( ( (SpinMatrix() <<  3, 0, 0, 0, 0, 0, 0, 0, 2, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, -1, 0, 0, 0, 0, 0, 0, 0, -2, 0, 0, 0, 0, 0, 0, 0, -3).finished() ) );
-const Spin3::SpinMatrix Spin3::Id (  (SpinMatrix() = SpinMatrix::Identity()) );
-const Spin3::SpinMatrix Spin3::Sp (  (SpinMatrix() = Spin3::Sx + iii * Spin3::Sy) );
-const Spin3::SpinMatrix Spin3::Sm (  (SpinMatrix() = Spin3::Sx - iii * Spin3::Sy) );
-
-struct Spin3p5 { 
-    enum { matrix_size = 8 };
-    typedef Matrix<complexg, matrix_size, matrix_size>  SpinMatrix;
-    static const SpinMatrix Sx;
-    static const SpinMatrix Sy;
-    static const SpinMatrix Sz;
-    static const SpinMatrix Id;
-    static const SpinMatrix Sp;
-    static const SpinMatrix Sm;
-};
-const Spin3p5::SpinMatrix Spin3p5::Sx ( ( (SpinMatrix() <<  0, sqrt(7.)/2., 0, 0, 0, 0, 0, 0, sqrt(7.)/2., 0, sqrt(12.)/2., 0, 0, 0, 0, 0, 0, sqrt(12.)/2., 0, sqrt(15.)/2., 0, 0, 0, 0, 0, 0, sqrt(15.)/2., 0, 2., 0, 0, 0, 0, 0, 0, 2., 0, sqrt(15.)/2., 0, 0, 0, 0, 0, 0, sqrt(15.)/2., 0, sqrt(12.)/2., 0, 0, 0, 0, 0, 0, sqrt(12.)/2., 0, sqrt(7.)/2., 0, 0, 0, 0, 0, 0, sqrt(7.)/2., 0).finished() ) );
-const Spin3p5::SpinMatrix Spin3p5::Sy ( ( (SpinMatrix() <<  0, iii * sqrt(7.)/2., 0, 0, 0, 0, 0, 0, -iii * sqrt(7.)/2., 0, iii * sqrt(12.)/2., 0, 0, 0, 0, 0, 0, -iii * sqrt(12.)/2., 0, iii * sqrt(15.)/2., 0, 0, 0, 0, 0, 0, -iii * sqrt(15.)/2., 0, iii * 2., 0, 0, 0, 0, 0, 0, -iii * 2., 0, iii * sqrt(15.)/2., 0, 0, 0, 0, 0, 0, -iii * sqrt(15.)/2., 0, iii * sqrt(12.)/2., 0, 0, 0, 0, 0, 0, -iii * sqrt(12.)/2., 0, iii * sqrt(7.)/2., 0, 0, 0, 0, 0, 0, -iii * sqrt(7.)/2., 0).finished() ) );
-const Spin3p5::SpinMatrix Spin3p5::Sz ( ( (SpinMatrix() <<  7./2., 0, 0, 0, 0, 0, 0, 0, 0, 5./2., 0, 0, 0, 0, 0, 0, 0, 0, 3./2., 0, 0, 0, 0, 0, 0, 0, 0, 1./2., 0, 0, 0, 0, 0, 0, 0, 0, -1./2., 0, 0, 0, 0, 0, 0, 0, 0, -3./2., 0, 0, 0, 0, 0, 0, 0, 0, -5./2., 0, 0, 0, 0, 0, 0, 0, 0, -7./2.).finished() ) );
-const Spin3p5::SpinMatrix Spin3p5::Id (  (SpinMatrix() = SpinMatrix::Identity()) );
-const Spin3p5::SpinMatrix Spin3p5::Sp (  (SpinMatrix() = Spin3p5::Sx + iii * Spin3p5::Sy) );
-const Spin3p5::SpinMatrix Spin3p5::Sm (  (SpinMatrix() = Spin3p5::Sx - iii * Spin3p5::Sy) );
-
-struct Spin4 { 
-    enum { matrix_size = 9 };
-    typedef Matrix<complexg, matrix_size, matrix_size>  SpinMatrix;
-    static const SpinMatrix Sx;
-    static const SpinMatrix Sy;
-    static const SpinMatrix Sz;
-    static const SpinMatrix Id;
-    static const SpinMatrix Sp;
-    static const SpinMatrix Sm;
-};
-const Spin4::SpinMatrix Spin4::Sx ( ( (SpinMatrix() <<  0, sqrt(4./2.), 0, 0, 0, 0, 0, 0, 0, sqrt(4./2.), 0, sqrt(7./2.), 0, 0, 0, 0, 0, 0, 0, sqrt(7./2.), 0, sqrt(9./2.), 0, 0, 0, 0, 0, 0, 0, sqrt(9./2.), 0, sqrt(10./2.), 0, 0, 0, 0, 0, 0, 0, sqrt(10./2.), 0, sqrt(10./2.), 0, 0, 0, 0, 0, 0, 0, sqrt(10./2.), 0, sqrt(9./2.), 0, 0, 0, 0, 0, 0, 0, sqrt(9./2.), 0, sqrt(7./2.), 0, 0, 0, 0, 0, 0, 0, sqrt(7./2.), 0, sqrt(4./2.), 0, 0, 0, 0, 0, 0, 0, sqrt(4./2.), 0).finished() ) );
-const Spin4::SpinMatrix Spin4::Sy ( ( (SpinMatrix() <<  0, iii * sqrt(4./2.), 0, 0, 0, 0, 0, 0, 0, -iii * sqrt(4./2.), 0, iii * sqrt(7./2.), 0, 0, 0, 0, 0, 0, 0, -iii * sqrt(7./2.), 0, iii * sqrt(9./2.), 0, 0, 0, 0, 0, 0, 0, -iii * sqrt(9./2.), 0, iii * sqrt(10./2.), 0, 0, 0, 0, 0, 0, 0, -iii * sqrt(10./2.), 0, iii * sqrt(10./2.), 0, 0, 0, 0, 0, 0, 0, -iii * sqrt(10./2.), 0, iii * sqrt(9./2.), 0, 0, 0, 0, 0, 0, 0, -iii * sqrt(9./2.), 0, iii * sqrt(7./2.), 0, 0, 0, 0, 0, 0, 0, -iii * sqrt(7./2.), 0, iii * sqrt(4./2.), 0, 0, 0, 0, 0, 0, 0, -iii * sqrt(4./2.), 0).finished() ) );
-const Spin4::SpinMatrix Spin4::Sz ( ( (SpinMatrix() <<  4, 0, 0, 0, 0, 0, 0, 0, 0, 0, 3, 0, 0, 0, 0, 0, 0, 0, 0, 0, 2, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, -1, 0, 0, 0, 0, 0, 0, 0, 0, 0, -2, 0, 0, 0, 0, 0, 0, 0, 0, 0, -3, 0, 0, 0, 0, 0, 0, 0, 0, 0, -4).finished() ) );
-const Spin4::SpinMatrix Spin4::Id (  (SpinMatrix() = SpinMatrix::Identity()) );
-const Spin4::SpinMatrix Spin4::Sp (  (SpinMatrix() = Spin4::Sx + iii * Spin4::Sy) );
-const Spin4::SpinMatrix Spin4::Sm (  (SpinMatrix() = Spin4::Sx - iii * Spin4::Sy) );
-
-struct Spin4p5 { 
-    enum { matrix_size = 10 };
-    typedef Matrix<complexg, matrix_size, matrix_size>  SpinMatrix;
-    static const SpinMatrix Sx;
-    static const SpinMatrix Sy;
-    static const SpinMatrix Sz;
-    static const SpinMatrix Id;
-    static const SpinMatrix Sp;
-    static const SpinMatrix Sm;
-};
-const Spin4p5::SpinMatrix Spin4p5::Sx ( ( (SpinMatrix() <<  0, 3./2., 0, 0, 0, 0, 0, 0, 0, 0, 3./2., 0, 2., 0, 0, 0, 0, 0, 0, 0, 0, 2., 0, sqrt(21.)/2., 0, 0, 0, 0, 0, 0, 0, 0, sqrt(21.)/2., 0, sqrt(24.)/2., 0, 0, 0, 0, 0, 0, 0, 0, sqrt(24.)/2., 0, 5./2., 0, 0, 0, 0, 0, 0, 0, 0, 5./2., 0, sqrt(24.)/2., 0, 0, 0, 0, 0, 0, 0, 0, sqrt(24.)/2., 0, sqrt(21.)/2., 0, 0, 0, 0, 0, 0, 0, 0, sqrt(21.)/2., 0, 2., 0, 0, 0, 0, 0, 0, 0, 0, 2., 0, 3./2., 0, 0, 0, 0, 0, 0, 0, 0, 3./2., 0).finished() ) );
-const Spin4p5::SpinMatrix Spin4p5::Sy ( ( (SpinMatrix() <<  0, iii * 3./2., 0, 0, 0, 0, 0, 0, 0, 0, -iii * 3./2., 0, iii * 2., 0, 0, 0, 0, 0, 0, 0, 0, -iii * 2., 0, iii * sqrt(21.)/2., 0, 0, 0, 0, 0, 0, 0, 0, -iii * sqrt(21.)/2., 0, iii * sqrt(24.)/2., 0, 0, 0, 0, 0, 0, 0, 0, -iii * sqrt(24.)/2., 0, iii * 5./2., 0, 0, 0, 0, 0, 0, 0, 0, -iii * 5./2., 0, iii * sqrt(24.)/2., 0, 0, 0, 0, 0, 0, 0, 0, -iii * sqrt(24.)/2., 0, iii * sqrt(21.)/2., 0, 0, 0, 0, 0, 0, 0, 0, -iii * sqrt(21.)/2., 0, iii * 2., 0, 0, 0, 0, 0, 0, 0, 0, -iii * 2., 0, iii * 3./2., 0, 0, 0, 0, 0, 0, 0, 0, -iii * 3./2., 0).finished() ) );
-const Spin4p5::SpinMatrix Spin4p5::Sz ( ( (SpinMatrix() <<  9./2., 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 7./2., 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 5./2., 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 3./2., 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1./2., 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, -1./2., 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, -3./2., 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, -5./2., 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, -7./2., 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, -9./2.).finished() ) );
-const Spin4p5::SpinMatrix Spin4p5::Id (  (SpinMatrix() = SpinMatrix::Identity()) );
-const Spin4p5::SpinMatrix Spin4p5::Sp (  (SpinMatrix() = Spin4p5::Sx + iii * Spin4p5::Sy) );
-const Spin4p5::SpinMatrix Spin4p5::Sm (  (SpinMatrix() = Spin4p5::Sx - iii * Spin4p5::Sy) );
-
-struct Spin5 { 
-    enum { matrix_size = 11 };
-    typedef Matrix<complexg, matrix_size, matrix_size>  SpinMatrix;
-    static const SpinMatrix Sx;
-    static const SpinMatrix Sy;
-    static const SpinMatrix Sz;
-    static const SpinMatrix Id;
-    static const SpinMatrix Sp;
-    static const SpinMatrix Sm;
-};
-const Spin5::SpinMatrix Spin5::Sx ( ( (SpinMatrix() <<  0, sqrt(5./2.), 0, 0, 0, 0, 0, 0, 0, 0, 0, sqrt(5./2.), 0, sqrt(9./2.), 0, 0, 0, 0, 0, 0, 0, 0, 0, sqrt(9./2.), 0, sqrt(12./2.), 0, 0, 0, 0, 0, 0, 0, 0, 0, sqrt(12./2.), 0, sqrt(14./2.), 0, 0, 0, 0, 0, 0, 0, 0, 0, sqrt(14./2.), 0, sqrt(15./2.), 0, 0, 0, 0, 0, 0, 0, 0, 0, sqrt(15./2.), 0, sqrt(15./2.), 0, 0, 0, 0, 0, 0, 0, 0, 0, sqrt(15./2.), 0, sqrt(14./2.), 0, 0, 0, 0, 0, 0, 0, 0, 0, sqrt(14./2.), 0, sqrt(12./2.), 0, 0, 0, 0, 0, 0, 0, 0, 0, sqrt(12./2.), 0, sqrt(9./2.), 0, 0, 0, 0, 0, 0, 0, 0, 0, sqrt(9./2.), 0, sqrt(5./2.), 0, 0, 0, 0, 0, 0, 0, 0, 0, sqrt(5./2.), 0).finished() ) );
-const Spin5::SpinMatrix Spin5::Sy ( ( (SpinMatrix() <<  0, iii * sqrt(5./2.), 0, 0, 0, 0, 0, 0, 0, 0, 0, -iii * sqrt(5./2.), 0, iii * sqrt(9./2.), 0, 0, 0, 0, 0, 0, 0, 0, 0, -iii * sqrt(9./2.), 0, iii * sqrt(12./2.), 0, 0, 0, 0, 0, 0, 0, 0, 0, -iii * sqrt(12./2.), 0, iii * sqrt(14./2.), 0, 0, 0, 0, 0, 0, 0, 0, 0, -iii * sqrt(14./2.), 0, iii * sqrt(15./2.), 0, 0, 0, 0, 0, 0, 0, 0, 0, -iii * sqrt(15./2.), 0, iii * sqrt(15./2.), 0, 0, 0, 0, 0, 0, 0, 0, 0, -iii * sqrt(15./2.), 0, iii * sqrt(14./2.), 0, 0, 0, 0, 0, 0, 0, 0, 0, -iii * sqrt(14./2.), 0, iii * sqrt(12./2.), 0, 0, 0, 0, 0, 0, 0, 0, 0, -iii * sqrt(12./2.), 0, iii * sqrt(9./2.), 0, 0, 0, 0, 0, 0, 0, 0, 0, -iii * sqrt(9./2.), 0, iii * sqrt(5./2.), 0, 0, 0, 0, 0, 0, 0, 0, 0, -iii * sqrt(5./2.), 0).finished() ) );
-const Spin5::SpinMatrix Spin5::Sz ( ( (SpinMatrix() <<  5, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 4, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 3, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 2, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, -1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, -2, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, -3, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, -4, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, -5).finished() ) );
-const Spin5::SpinMatrix Spin5::Id (  (SpinMatrix() = SpinMatrix::Identity()) );
-const Spin5::SpinMatrix Spin5::Sp (  (SpinMatrix() = Spin5::Sx + iii * Spin5::Sy) );
-const Spin5::SpinMatrix Spin5::Sm (  (SpinMatrix() = Spin5::Sx - iii * Spin5::Sy) );
-
-
-
 typedef SingleSpin<Spin0p5> SingleSpin0p5;
 typedef SingleSpin<Spin1> SingleSpin1;
 typedef SingleSpin<Spin1p5> SingleSpin1p5;
@@ -1597,7 +1562,6 @@ typedef SingleSpin<Spin3p5> SingleSpin3p5;
 typedef SingleSpin<Spin4> SingleSpin4;
 typedef SingleSpin<Spin4p5> SingleSpin4p5;
 typedef SingleSpin<Spin5> SingleSpin5;
-
 
 
 #ifdef EXAMPLE_MAINS
